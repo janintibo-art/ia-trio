@@ -28,6 +28,11 @@ class MainActivity : Activity() {
     private lateinit var orchestrator: Orchestrator
     private lateinit var scanner: ScanTrainer
     private lateinit var web: WebLearner
+    private lateinit var remote: RemoteBrain
+    private lateinit var remoteStatus: TextView
+    private lateinit var remoteKeyField: EditText
+    private lateinit var remoteAsk: EditText
+    private lateinit var remoteSwitch: Switch
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -141,6 +146,7 @@ class MainActivity : Activity() {
     // ============================================================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        remote = RemoteBrain(this)
         profiles = ProfileManager(filesDir)
         profiles.migrateLegacy()
         loadProfile(profiles.currentName(), refreshUi = false)
@@ -368,7 +374,18 @@ class MainActivity : Activity() {
         fusionOut = TextView(this).apply {
             setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f); setPadding(0, dp(8), 0, 0)
         }
-        cf.addView(pill("Penser ensemble", Color.parseColor("#334155"), cInk) { fusionOut.text = orchestrator.thinkTogether() })
+        cf.addView(pill("Penser ensemble", Color.parseColor("#334155"), cInk) {
+            val local = orchestrator.thinkTogether()
+            fusionOut.text = local
+            if (remote.ready()) {
+                fusionOut.text = local + "\n\n\u2601\uFE0F Le cerveau distant réfléchit..."
+                val img = orchestrator.lastImage?.let { "je vois « ${it.first} » (confiance ${(it.second * 100).toInt()}%)" } ?: "rien vu"
+                val aud = orchestrator.lastAudio?.let { "j'entends « ${it.first} » (confiance ${(it.second * 100).toInt()}%)" } ?: "rien entendu"
+                remote.ask("Mes petites IA locales sur téléphone disent : $img et $aud. En 2-3 phrases en français : commente ce qu'elles perçoivent et donne UN conseil concret pour mieux les entraîner.") {
+                    fusionOut.text = local + "\n\n\u2601\uFE0F Cerveau distant :\n" + it
+                }
+            }
+        })
         cf.addView(fusionOut)
         box.addView(cf, lp(16))
     }
@@ -448,6 +465,50 @@ class MainActivity : Activity() {
             loadProfile(n)
         }, lp(10))
         box.addView(cl, lp(16))
+
+        // Cerveau distant (Gemini)
+        val cr = card(Color.parseColor("#F59E0B"))
+        cr.addView(sectionTitle("\u2601\uFE0F  Cerveau distant (Gemini)", Color.parseColor("#F59E0B")))
+        cr.addView(TextView(this).apply {
+            text = "Un gros modèle en ligne pour épauler tes 3 IA locales. Clé gratuite sur aistudio.google.com. ATTENTION : activé, tes questions partent sur les serveurs de Google. Désactivé, tout reste 100% local. Les mémoires de tes IA ne sont jamais envoyées."
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        remoteSwitch = Switch(this).apply {
+            text = "Activer le cerveau distant"
+            setTextColor(cInk)
+            isChecked = remote.enabled
+            setOnCheckedChangeListener { _, checked ->
+                remote.enabled = checked
+                remoteStatus.text = if (checked) "Activé \u2601\uFE0F" else "Désactivé — 100% local \uD83D\uDD12"
+            }
+        }
+        cr.addView(remoteSwitch)
+        remoteKeyField = field("Colle ta clé API Gemini ici")
+        if (remote.apiKey.isNotBlank()) remoteKeyField.setText(remote.apiKey)
+        cr.addView(remoteKeyField, lp(10))
+        remoteStatus = status().also {
+            it.text = if (remote.enabled) "Activé \u2601\uFE0F" else "Désactivé — 100% local \uD83D\uDD12"
+        }
+        cr.addView(rowEqual(
+            pill("Enregistrer la clé", Color.parseColor("#F59E0B"), Color.parseColor("#D97706")) {
+                remote.apiKey = remoteKeyField.text.toString()
+                remoteStatus.text = if (remote.apiKey.isBlank()) "Clé effacée." else "Clé enregistrée \u2714"
+            },
+            pill("Tester", Color.parseColor("#F59E0B"), Color.parseColor("#D97706")) {
+                remoteStatus.text = "Test en cours..."
+                remote.ask("Réponds juste : OK, je suis là !") { remoteStatus.text = it }
+            }
+        ), lp(10))
+        remoteAsk = field("Pose une question au cerveau distant")
+        cr.addView(remoteAsk, lp(10))
+        cr.addView(pill("Demander", Color.parseColor("#F59E0B"), Color.parseColor("#D97706")) {
+            val q = remoteAsk.text.toString().trim()
+            if (q.isEmpty()) return@pill toast("Écris une question")
+            remoteStatus.text = "Réflexion..."
+            remote.ask(q) { remoteStatus.text = it }
+        }, lp(10))
+        cr.addView(remoteStatus)
+        box.addView(cr, lp(16))
     }
 
     private fun updateBehaviorLabel() {
@@ -518,6 +579,16 @@ class MainActivity : Activity() {
             "\u2022 Images \u2192 IA images : colle l'URL d'une page pleine de photos du même sujet (ex: une recherche d'images de chats), donne l'étiquette « chat », et hop : jusqu'à 8 images apprises d'un coup.\n" +
             "\u2022 Wikipédia : le plus simple ! Tape juste un sujet (« guitare », « python ») et l'article français entier est appris.\n" +
             "\u2022 Astuce : combine avec les profils. Un profil « cuisine » nourri d'articles de recettes complétera tes phrases comme un chef !")
+        tutoCard(Color.parseColor("#F59E0B"), "\u2601\uFE0F  Le cerveau distant (optionnel)",
+            "Ton téléphone est limité ? Un gros modèle en ligne peut épauler tes IA.\n\n" +
+            "OBTENIR UNE CLÉ GRATUITE :\n" +
+            "1. Va sur aistudio.google.com (compte Google requis).\n" +
+            "2. Clique sur « Get API key » \u2192 « Create API key ».\n" +
+            "3. Copie la clé, colle-la dans l'onglet Profils, Enregistrer, puis active l'interrupteur.\n\n" +
+            "CE QUE ÇA CHANGE :\n" +
+            "\u2022 Tu peux poser des questions libres au cerveau distant.\n" +
+            "\u2022 « Penser ensemble » : il commente ce que tes IA perçoivent et te conseille.\n\n" +
+            "VIE PRIVÉE : activé, tes questions partent chez Google. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
         tutoCard(cInk, "\uD83E\uDDEC  Profils : comme changer de modèle",
             "Chaque profil = une mémoire totalement séparée + un comportement.\n\n" +
             "Exemples d'usage :\n" +

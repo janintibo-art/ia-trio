@@ -1,30 +1,29 @@
-# Nouveautés v7 — Accès Internet
+# Nouveautés v8 — Cerveau distant (activable/désactivable)
 
-- **Nouvelle carte Internet** (onglet Entraîner) :
-  - **Texte → IA code** : colle l'URL d'une page (article, doc, blog) ; le texte
-    est extrait du HTML et nourrit les complétions.
-  - **Images → IA images** : colle l'URL d'une page ; jusqu'à 8 images sont
-    téléchargées et apprises avec l'étiquette que tu donnes. Fonctionne aussi
-    avec l'URL directe d'une image.
-  - **Wikipédia** : tape juste un sujet (« chat », « guitare »...) et l'article
-    français est appris automatiquement.
-- Extraction HTML maison (scripts/styles supprimés, entités décodées), limite de
-  3 Mo par téléchargement et 20 000 caractères par page, suivi des redirections,
-  minuteries pour ne jamais bloquer l'app.
-- Nouvelle section « Bien utiliser Internet » dans le tutoriel.
-- Permission INTERNET ajoutée (c'est la permission Android standard, non
-  dangereuse — aucune donnée de tes IA ne quitte le téléphone : l'app télécharge,
-  elle n'envoie rien).
+- **Nouvelle carte « Cerveau distant » dans l'onglet Profils** : connecte un gros
+  modèle en ligne (Gemini de Google, clé gratuite sur aistudio.google.com) pour
+  épauler tes 3 IA locales.
+- **Interrupteur ON/OFF** : activé = le cerveau distant répond ; désactivé =
+  100% local, rien ne quitte le téléphone. L'état est mémorisé.
+- **Champ clé API** avec Enregistrer + bouton Tester.
+- **Questions libres** : pose n'importe quelle question au cerveau distant.
+- **Orchestrateur augmenté** : quand le cerveau distant est activé, « Penser
+  ensemble » lui envoie ce que tes IA voient/entendent et il commente + donne
+  un conseil d'entraînement.
+- Bascule automatique de modèle (gemini-2.0-flash puis 1.5-flash) si Google
+  fait évoluer ses modèles.
+- Nouvelle section tutoriel : comment obtenir la clé gratuite, et ce qui part
+  (ou pas) sur Internet. Les mémoires de tes 3 IA ne sont JAMAIS envoyées.
 
-# v6 — Onglets, Profils & Tutoriel  # v5 — Formats élargis
+# v7 — Internet  # v6 — Onglets & Profils  # v5 — Formats élargis
 # v4 — Entraînement massif  # v3 — Graphisme  # v2 — Intelligence
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v7.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v8.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v7 acces internet"
+git commit -m "v8 cerveau distant"
 git push
 ```

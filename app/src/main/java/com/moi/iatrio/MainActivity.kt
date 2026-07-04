@@ -27,6 +27,7 @@ class MainActivity : Activity() {
     private lateinit var codeBrain: CodeBrain
     private lateinit var orchestrator: Orchestrator
     private lateinit var scanner: ScanTrainer
+    private lateinit var web: WebLearner
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -36,6 +37,9 @@ class MainActivity : Activity() {
     private lateinit var codeStatus: TextView
     private lateinit var scanStatus: TextView
     private lateinit var fusionOut: TextView
+    private lateinit var webStatus: TextView
+    private lateinit var webUrl: EditText
+    private lateinit var webLabel: EditText
     private lateinit var imgLabel: EditText
     private lateinit var audLabel: EditText
     private lateinit var codeInput: EditText
@@ -211,6 +215,7 @@ class MainActivity : Activity() {
         codeBrain = CodeBrain(d)
         orchestrator = Orchestrator(imageBrain, audioBrain, codeBrain)
         scanner = ScanTrainer(this, imageBrain, audioBrain, codeBrain)
+        web = WebLearner(this, imageBrain, codeBrain)
         if (refreshUi) { refreshAllStatuses(); refreshProfilesTab(); toast("Profil « $name » activé") }
     }
 
@@ -318,6 +323,44 @@ class MainActivity : Activity() {
         ))
         cm.addView(scanStatus)
         box.addView(cm, lp(16))
+
+        // Internet
+        val cw = card(Color.parseColor("#0EA5E9"))
+        cw.addView(sectionTitle("\uD83C\uDF10  Internet", Color.parseColor("#0EA5E9")))
+        cw.addView(TextView(this).apply {
+            text = "Nourris tes IA depuis le web : le texte d'une page va dans l'IA code, les images d'une page dans l'IA images (avec ton étiquette). Ou tape juste un sujet et utilise Wikipédia !"
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        webUrl = field("URL ou sujet (ex: wikipedia.org/... ou chat)")
+        webLabel = field("Étiquette pour les images (ex: chat)")
+        webStatus = status()
+        cw.addView(webUrl)
+        cw.addView(webLabel, lp(10))
+        cw.addView(rowEqual(
+            pill("Texte \u2192 IA code", Color.parseColor("#0EA5E9"), Color.parseColor("#0284C7")) {
+                val u = webUrl.text.toString().trim()
+                if (u.isEmpty()) return@pill toast("Entre une URL")
+                webStatus.text = "Chargement..."
+                web.learnPageText(u) { webStatus.text = it; codeStatus.text = "Mémoire : ${codeBrain.size()} motifs" }
+            },
+            pill("Images \u2192 IA images", Color.parseColor("#0EA5E9"), Color.parseColor("#0284C7")) {
+                val u = webUrl.text.toString().trim()
+                val l = webLabel.text.toString().trim()
+                if (u.isEmpty() || l.isEmpty()) return@pill toast("URL ET étiquette nécessaires")
+                webStatus.text = "Chargement..."
+                web.learnPageImages(u, l,
+                    onProgress = { webStatus.text = it },
+                    onDone = { webStatus.text = it; imgStatus.text = "Appris : ${imageBrain.summary()}" })
+            }
+        ), lp(10))
+        cw.addView(pill("\uD83D\uDCD6 Apprendre depuis Wikipédia", Color.parseColor("#0EA5E9"), Color.parseColor("#0284C7")) {
+            val u = webUrl.text.toString().trim()
+            if (u.isEmpty()) return@pill toast("Tape un sujet (ex: chat)")
+            webStatus.text = "Chargement de Wikipédia..."
+            web.learnWikipedia(u) { webStatus.text = it; codeStatus.text = "Mémoire : ${codeBrain.size()} motifs" }
+        }, lp(10))
+        cw.addView(webStatus)
+        box.addView(cw, lp(16))
 
         // Orchestrateur
         val cf = card(cInk)
@@ -470,6 +513,11 @@ class MainActivity : Activity() {
             "3. Mets photos, musiques ou modèles 3D dans le bon dossier.\n" +
             "4. Onglet Entraîner → Choisir un dossier → sélectionne Entrainement/.\n\n" +
             "Le nom de chaque sous-dossier devient l'étiquette. Tu peux relancer plusieurs scans, les IA cumulent tout.")
+        tutoCard(Color.parseColor("#0EA5E9"), "\uD83C\uDF10  Bien utiliser Internet",
+            "\u2022 Texte \u2192 IA code : colle l'URL d'un article, d'une doc, d'un blog. Le texte nourrit les complétions.\n" +
+            "\u2022 Images \u2192 IA images : colle l'URL d'une page pleine de photos du même sujet (ex: une recherche d'images de chats), donne l'étiquette « chat », et hop : jusqu'à 8 images apprises d'un coup.\n" +
+            "\u2022 Wikipédia : le plus simple ! Tape juste un sujet (« guitare », « python ») et l'article français entier est appris.\n" +
+            "\u2022 Astuce : combine avec les profils. Un profil « cuisine » nourri d'articles de recettes complétera tes phrases comme un chef !")
         tutoCard(cInk, "\uD83E\uDDEC  Profils : comme changer de modèle",
             "Chaque profil = une mémoire totalement séparée + un comportement.\n\n" +
             "Exemples d'usage :\n" +

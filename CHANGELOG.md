@@ -1,27 +1,27 @@
-# Nouveautés v10 — Scan complet & Sauvegardes
+# Nouveautés v11 — Vision en direct & Croisements 👁💞
 
-- **Bouton « 📱 TOUT scanner (téléphone + SD) »** : parcourt l'intégralité du
-  stockage interne ET des cartes SD/USB, sans rien sélectionner. Android
-  demandera la permission « Accès à tous les fichiers » (l'app ouvre
-  directement le bon écran de réglages) : active-la puis relance.
-  - Ignore les dossiers cachés et Android/ (système).
-  - Limite de visite passée à 25 000 fichiers pour le scan complet.
-  - Les étiquettes = noms des dossiers réels traversés.
-- **💾 Sauvegarder / ♻️ Restaurer le profil actif** (onglet Profils) : copie les
-  mémoires du profil dans Download/IATrio/<nom>/ — tu ne perds plus tes
-  cerveaux si tu réinstalles l'app, et tu peux même copier ce dossier sur un
-  autre téléphone !
-- Le sélecteur de dossier classique reste disponible pour des scans ciblés.
+- **👁 Vision en direct** (carte turquoise, onglet Entraîner) : l'IA images
+  regarde par la caméra et devine EN TEMPS RÉEL ce qu'elle voit (~1 image/s).
+  - Elle se trompe ? Tape le bon nom et « Apprendre cette vue » : correction
+    instantanée. C'est le mode d'entraînement le plus rapide et le plus fun.
+  - La prudence du profil s'applique (« 🤔 Pas sûr... » sous le seuil).
+  - Ce qu'elle voit alimente l'orchestrateur (« Penser ensemble »).
+  - La caméra s'arrête automatiquement quand tu quittes l'app.
+- **💞 Croisement d'enfants** (onglet Enfant) : choisis deux enfants de la
+  fratrie, donne un prénom, et un bébé naît avec la moyenne de leurs gènes
+  + une mutation aléatoire, héritant du savoir des deux. Crée des lignées !
+- Nouvelles sections tutoriel pour les deux.
+- Permission CAMERA ajoutée (demandée seulement au premier démarrage).
 
-# v9 — IA Enfant  # v8 — Cerveau distant  # v7 — Internet
-# v6 — Profils  # v5 — Formats  # v4 — Scan  # v3 — Graphisme  # v2 — Intelligence
+# v10 — Scan complet & Sauvegardes  # v9 — IA Enfant  # v8 — Cerveau distant
+# v7 — Internet  # v6 — Profils  # v5 — Formats  # v4 — Scan  # v3 — Design  # v2 — IA
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v10.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v11.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v10 scan complet sauvegardes"
+git commit -m "v11 vision directe croisements"
 git push
 ```

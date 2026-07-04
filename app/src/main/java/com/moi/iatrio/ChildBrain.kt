@@ -158,4 +158,25 @@ class ChildManager(base: File) {
         setCurrent(clean)
         return child
     }
+
+    /**
+     * CROISEMENT 💞 : deux enfants ont un bébé qui mélange leurs gènes
+     * (moyenne + mutation) et hérite d'un morceau du savoir de chacun.
+     */
+    fun cross(name: String, p1: ChildBrain, p2: ChildBrain): ChildBrain {
+        val clean = name.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "").ifBlank { "bebe2" }
+        val c = get(clean)
+        c.curiosity = ((p1.curiosity + p2.curiosity) / 2 + Random.nextInt(-20, 21)).coerceIn(0, 100)
+        c.calm = ((p1.calm + p2.calm) / 2 + Random.nextInt(-20, 21)).coerceIn(0, 100)
+        c.creativity = ((p1.creativity + p2.creativity) / 2 + Random.nextInt(-20, 21)).coerceIn(5, 100)
+        c.favoriteWord = if (Random.nextBoolean()) p1.favoriteWord else p2.favoriteWord
+        val h1 = p1.brain.corpusExcerpt(1500)
+        val h2 = p2.brain.corpusExcerpt(1500)
+        if (h1.isNotBlank()) c.brain.learn(h1)
+        if (h2.isNotBlank()) c.brain.learn(h2)
+        c.xp = 0
+        c.save()
+        setCurrent(clean)
+        return c
+    }
 }

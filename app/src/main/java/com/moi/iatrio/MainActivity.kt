@@ -18,6 +18,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.TextureView
 import android.view.View
 import android.widget.*
 import java.io.File
@@ -40,6 +41,14 @@ class MainActivity : Activity() {
     private lateinit var childInput: EditText
     private lateinit var childNameField: EditText
     private lateinit var childListBox: LinearLayout
+    private lateinit var crossA: Spinner
+    private lateinit var crossB: Spinner
+    private lateinit var babyNameField: EditText
+    private lateinit var liveTexture: TextureView
+    private lateinit var liveOut: TextView
+    private lateinit var liveLabel: EditText
+    private var liveCamera: android.hardware.Camera? = null
+    private var liveRunning = false
     private lateinit var remoteStatus: TextView
     private lateinit var remoteKeyField: EditText
     private lateinit var remoteAsk: EditText
@@ -286,6 +295,34 @@ class MainActivity : Activity() {
         ci.addView(ghost("\uD83D\uDDD1 Oublier les images") { imageBrain.forget(); imgStatus.text = "Mémoire images effacée." }, lp(10))
         ci.addView(imgStatus)
         box.addView(ci, lp(0))
+
+        // Vision en direct (caméra)
+        val cv = card(Color.parseColor("#14B8A6"))
+        cv.addView(sectionTitle("\uD83D\uDC41  Vision en direct", Color.parseColor("#14B8A6")))
+        cv.addView(TextView(this).apply {
+            text = "L'IA images regarde par la caméra et devine en temps réel. Pointe un objet, et si elle se trompe, apprends-lui sur le champ !"
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        liveTexture = TextureView(this)
+        cv.addView(liveTexture, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(240)))
+        liveOut = status()
+        cv.addView(rowEqual(
+            pill("\u25B6 Démarrer", Color.parseColor("#14B8A6"), Color.parseColor("#0D9488")) { startLive() },
+            ghost("\u23F9 Stop") { stopLive() }
+        ), lp(10))
+        liveLabel = field("Nom de ce que voit la caméra")
+        cv.addView(liveLabel, lp(10))
+        cv.addView(pill("Apprendre cette vue", Color.parseColor("#14B8A6"), Color.parseColor("#0D9488")) {
+            if (!liveRunning) return@pill toast("Démarre d'abord la caméra")
+            val l = liveLabel.text.toString().trim()
+            if (l.isEmpty()) return@pill toast("Donne un nom à ce que voit la caméra")
+            val bmp = liveTexture.getBitmap(160, 160) ?: return@pill toast("Image indisponible")
+            imageBrain.learn(bmp, l)
+            imgStatus.text = "Appris : ${imageBrain.summary()}"
+            liveOut.text = "\u2714 Vue apprise comme « $l » !"
+        }, lp(10))
+        cv.addView(liveOut)
+        box.addView(cv, lp(16))
 
         // Sons
         val cs = card(cPurple)
@@ -616,13 +653,20 @@ class MainActivity : Activity() {
             "\u2022 Tu peux poser des questions libres au cerveau distant.\n" +
             "\u2022 « Penser ensemble » : il commente ce que tes IA perçoivent et te conseille.\n\n" +
             "VIE PRIVÉE : activé, tes questions partent chez Google. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
+        tutoCard(Color.parseColor("#14B8A6"), "\uD83D\uDC41  La vision en direct",
+            "L'IA regarde le monde par ta caméra et devine en continu !\n\n" +
+            "\u2022 Démarrer \u2192 pointe un objet \u2192 elle affiche ce qu'elle croit voir.\n" +
+            "\u2022 Elle se trompe ? Écris le bon nom et « Apprendre cette vue » : elle apprend sur le champ. C'est la façon la plus rapide et amusante de l'entraîner.\n" +
+            "\u2022 Fais le tour de la maison : tasse, plante, télécommande... 5-6 vues par objet sous différents angles et elle devient bluffante.\n" +
+            "\u2022 La vision en direct alimente aussi « Penser ensemble » (l'orchestrateur).")
         tutoCard(Color.parseColor("#EC4899"), "\uD83D\uDC76  L'IA Enfant",
             "Ta création la plus personnelle : une IA qui NAÎT de tes 3 IA.\n\n" +
             "\u2022 À la naissance, elle hérite du savoir des parents du profil actif + des gènes ALÉATOIRES : deux enfants ne seront jamais identiques.\n" +
             "\u2022 Nouveau-né, elle gazouille (« areuh gaga ! »). Parle-lui souvent : chaque message lui donne de l'expérience.\n" +
             "\u2022 Étapes : nouveau-né \uD83C\uDF7C \u2192 bébé \uD83D\uDC76 \u2192 enfant \uD83E\uDDD2 \u2192 ado \uD83C\uDFA7 (attention au caractère !) \u2192 adulte \uD83E\uDDE0.\n" +
             "\u2022 « Hériter des parents » : offre-lui d'un coup un morceau du savoir des 3 IA.\n" +
-            "\u2022 Tu peux élever toute une fratrie et comparer leurs personnalités !\n\n" +
+            "\u2022 Tu peux élever toute une fratrie et comparer leurs personnalités !\n" +
+            "\u2022 CROISEMENT \uD83D\uDC9E : deux enfants peuvent avoir un bébé qui mélange leurs gènes (moyenne + mutation) et hérite du savoir des deux. Fais des lignées !\n\n" +
             "Astuce : entraîne d'abord bien tes 3 IA (surtout le cerveau code), puis donne naissance — l'enfant naîtra avec un meilleur bagage.")
         tutoCard(cInk, "\uD83E\uDDEC  Profils : comme changer de modèle",
             "Chaque profil = une mémoire totalement séparée + un comportement.\n\n" +
@@ -699,6 +743,25 @@ class MainActivity : Activity() {
         cf2.addView(sectionTitle("\uD83D\uDC6A  La fratrie", Color.parseColor("#EC4899")))
         childListBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         cf2.addView(childListBox)
+        cf2.addView(body("\uD83D\uDC9E Croisement : deux enfants peuvent avoir un bébé qui mélange leurs gènes !"), lp(12))
+        crossA = Spinner(this)
+        crossB = Spinner(this)
+        cf2.addView(rowEqual(crossA, crossB), lp(6))
+        babyNameField = field("Prénom du bébé")
+        cf2.addView(babyNameField, lp(8))
+        cf2.addView(pill("\uD83D\uDC9E Croiser", Color.parseColor("#EC4899"), Color.parseColor("#DB2777")) {
+            val names = childManager.list()
+            if (names.size < 2) return@pill toast("Il faut au moins 2 enfants pour un croisement !")
+            val a = crossA.selectedItem as? String ?: return@pill toast("Choisis le 1er parent")
+            val b = crossB.selectedItem as? String ?: return@pill toast("Choisis le 2e parent")
+            if (a == b) return@pill toast("Choisis deux enfants DIFFÉRENTS")
+            val n = babyNameField.text.toString().trim()
+            if (n.isEmpty()) return@pill toast("Donne un prénom au bébé !")
+            child = childManager.cross(n, childManager.get(a), childManager.get(b))
+            babyNameField.setText("")
+            refreshChildTab()
+            childTalkOut.text = "\uD83C\uDF89 ${child!!.name} est né(e) du croisement de $a et $b ! " + child!!.speak("bonjour")
+        }, lp(8))
         box.addView(cf2, lp(16))
     }
 
@@ -732,6 +795,70 @@ class MainActivity : Activity() {
             })
             childListBox.addView(row, lp(8))
         }
+        if (::crossA.isInitialized) {
+            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, all)
+            crossA.adapter = adapter
+            crossB.adapter = adapter
+            if (all.size >= 2) crossB.setSelection(1)
+        }
+    }
+
+    // ============================================================
+    // Vision en direct : caméra + boucle de devinette
+    @Suppress("DEPRECATION")
+    private fun startLive() {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 44)
+            toast("Autorise la caméra puis rappuie sur Démarrer")
+            return
+        }
+        if (liveRunning) return
+        val open = {
+            try {
+                liveCamera = android.hardware.Camera.open()
+                liveCamera!!.setDisplayOrientation(90)
+                liveCamera!!.setPreviewTexture(liveTexture.surfaceTexture)
+                liveCamera!!.startPreview()
+                liveRunning = true
+                liveOut.text = "\uD83D\uDC41 Je regarde..."
+                tickLive()
+            } catch (e: Exception) {
+                liveOut.text = "Erreur caméra : ${e.message}"
+            }
+        }
+        if (liveTexture.isAvailable) open()
+        else liveTexture.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(s: android.graphics.SurfaceTexture, w: Int, h: Int) { open() }
+            override fun onSurfaceTextureSizeChanged(s: android.graphics.SurfaceTexture, w: Int, h: Int) {}
+            override fun onSurfaceTextureDestroyed(s: android.graphics.SurfaceTexture): Boolean { stopLive(); return true }
+            override fun onSurfaceTextureUpdated(s: android.graphics.SurfaceTexture) {}
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun stopLive() {
+        liveRunning = false
+        try { liveCamera?.stopPreview(); liveCamera?.release() } catch (e: Exception) { }
+        liveCamera = null
+        if (::liveOut.isInitialized) liveOut.text = "Caméra arrêtée."
+    }
+
+    private fun tickLive() {
+        if (!liveRunning) return
+        try {
+            val bmp = liveTexture.getBitmap(160, 160)
+            if (bmp != null) {
+                val r = imageBrain.guess(bmp)
+                orchestrator.lastImage = r
+                liveOut.text = verdict(r, "\uD83D\uDC41 Je vois :")
+            }
+        } catch (e: Exception) { }
+        liveTexture.postDelayed({ tickLive() }, 900)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopLive()
     }
 
     // ============================================================

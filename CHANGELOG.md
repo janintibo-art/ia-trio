@@ -1,25 +1,28 @@
-# Nouveautés v2
+# Nouveautés v3 — Graphisme
 
-- **Images en couleur (RGB)** : reconnaissance basée sur les couleurs, pas juste le gris.
-- **Data augmentation** : chaque image apprise génère 3 variantes (miroir, plus claire,
-  plus sombre) → meilleure généralisation avec peu de photos.
-- **Audio par FFT** : sons analysés par transformée de Fourier (32 bandes + fenêtre de
-  Hann). Distingue notes, timbres, instruments — plus seulement le volume.
-- **Boutons "Oublier"** par IA : efface une mémoire sans toucher aux autres.
-- **Compteurs d'exemples** : chaque IA affiche "chat:5, chien:3" pour voir où il manque
-  des données.
-- **Orchestrateur plus malin** : annonce quand vision et ouïe sont d'accord, sinon
-  conseille d'ajouter des exemples.
+- **Icône d'application** : ton icône s'affiche maintenant sur l'écran d'accueil
+  (toutes densités mdpi→xxxhdpi + version ronde).
+- **Logo en en-tête** dans l'app.
+- **Interface entièrement redessinée** : fond dégradé, cartes blanches arrondies
+  avec liseré coloré par IA (bleu images, violet sons, orange code), boutons
+  "pilule" en dégradé, champs de saisie stylés, boutons "Oublier" discrets en rouge.
 
-## Mettre à jour ton dépôt existant
+# v2 — Intelligence
+
+- Images en couleur (RGB) + data augmentation (miroir, clair, sombre).
+- Audio par FFT (32 bandes de fréquences + fenêtre de Hann).
+- Boutons "Oublier" par IA, compteurs d'exemples, orchestrateur plus malin.
+
+## Mettre à jour ton dépôt
 
 Dans Termux, après avoir décompressé ce zip par-dessus l'ancien dossier :
 
 ```bash
+unzip -o /storage/emulated/0/Download/ia-trio-v3.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v2 couleur FFT oublier compteurs"
+git commit -m "v3 graphisme + icone"
 git push
 ```
 
-GitHub reconstruira l'APK automatiquement (gh run watch pour suivre).
+GitHub reconstruit l'APK automatiquement.

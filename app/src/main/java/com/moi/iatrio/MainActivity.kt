@@ -5,10 +5,15 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Bundle
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 
@@ -31,6 +36,104 @@ class MainActivity : Activity() {
     private lateinit var codeInput: EditText
     private lateinit var codePrompt: EditText
 
+    // Palette (accordée au logo)
+    private val cBlue = Color.parseColor("#22B8F0")
+    private val cBlueDark = Color.parseColor("#1E88E5")
+    private val cPurple = Color.parseColor("#7C3AED")
+    private val cPurpleDark = Color.parseColor("#6D28D9")
+    private val cOrange = Color.parseColor("#FB8C00")
+    private val cOrangeDark = Color.parseColor("#F4511E")
+    private val cInk = Color.parseColor("#1E293B")
+    private val cMuted = Color.parseColor("#64748B")
+    private val cField = Color.parseColor("#F1F5F9")
+    private val cCard = Color.parseColor("#FFFFFF")
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    // Bouton pilule coloré (dégradé)
+    private fun pill(text: String, c1: Int, c2: Int, onClick: () -> Unit) = Button(this).apply {
+        this.text = text
+        setTextColor(Color.WHITE)
+        isAllCaps = false
+        typeface = Typeface.DEFAULT_BOLD
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        stateListAnimator = null
+        background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(c1, c2)).apply {
+            cornerRadius = dp(26).toFloat()
+        }
+        setPadding(dp(8), dp(14), dp(8), dp(14))
+        setOnClickListener { onClick() }
+    }
+
+    // Petit bouton discret (oublier)
+    private fun ghost(text: String, onClick: () -> Unit) = Button(this).apply {
+        this.text = text
+        setTextColor(Color.parseColor("#EF4444"))
+        isAllCaps = false
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        stateListAnimator = null
+        background = GradientDrawable().apply {
+            cornerRadius = dp(22).toFloat()
+            setColor(Color.parseColor("#FEE2E2"))
+        }
+        setPadding(dp(8), dp(11), dp(8), dp(11))
+        setOnClickListener { onClick() }
+    }
+
+    private fun field(hintText: String, lines: Int = 1) = EditText(this).apply {
+        hint = hintText
+        setHintTextColor(cMuted)
+        setTextColor(cInk)
+        minLines = lines
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(14).toFloat()
+            setColor(cField)
+            setStroke(dp(1), Color.parseColor("#E2E8F0"))
+        }
+    }
+
+    private fun lp(topMargin: Int = 0) = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+    ).apply { setMargins(0, dp(topMargin), 0, 0) }
+
+    // Carte blanche arrondie avec liseré coloré à gauche
+    private fun card(accent: Int): LinearLayout {
+        val c = LinearLayout(this)
+        c.orientation = LinearLayout.VERTICAL
+        c.setPadding(dp(18), dp(18), dp(18), dp(18))
+        c.background = GradientDrawable().apply {
+            cornerRadius = dp(22).toFloat()
+            setColor(cCard)
+            setStroke(dp(2), accent)
+        }
+        c.elevation = dp(6).toFloat()
+        return c
+    }
+
+    private fun sectionTitle(t: String, accent: Int) = TextView(this).apply {
+        text = t
+        setTextColor(accent)
+        typeface = Typeface.DEFAULT_BOLD
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
+        setPadding(0, 0, 0, dp(6))
+    }
+
+    private fun status() = TextView(this).apply {
+        setTextColor(cMuted)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        setPadding(0, dp(10), 0, 0)
+    }
+
+    private fun rowEqual(vararg views: View) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        views.forEachIndexed { i, v ->
+            val p = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            if (i > 0) p.setMargins(dp(8), 0, 0, 0)
+            addView(v, p)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         imageBrain = ImageBrain(filesDir)
@@ -38,86 +141,114 @@ class MainActivity : Activity() {
         codeBrain = CodeBrain(filesDir)
         orchestrator = Orchestrator(imageBrain, audioBrain, codeBrain)
 
-        val root = LinearLayout(this).apply {
+        // Fond dégradé
+        val screen = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
-        }
-        fun title(t: String) = TextView(this).apply { text = t; textSize = 20f; setPadding(0, 40, 0, 8) }
-        fun button(t: String, onClick: () -> Unit) = Button(this).apply { text = t; setOnClickListener { onClick() } }
-        fun row(vararg views: View) = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            views.forEach { addView(it, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)) }
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#EEF2FF"), Color.parseColor("#E0F2FE"))
+            )
+            setPadding(dp(18), dp(24), dp(18), dp(24))
         }
 
+        // En-tête : logo
+        screen.addView(ImageView(this).apply {
+            setImageResource(R.drawable.logo)
+            adjustViewBounds = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(70)
+            ).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(4) }
+        })
+        screen.addView(TextView(this).apply {
+            text = "3 IA locales que tu entraînes toi-même"
+            setTextColor(cMuted)
+            gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(0, 0, 0, dp(18))
+        })
+
         // ---------- IMAGES ----------
-        root.addView(title("\uD83D\uDDBC IA Images (couleur)"))
-        imgLabel = EditText(this).apply { hint = "Nom de l'image (ex: chat)" }
-        imgStatus = TextView(this).apply { text = "Appris : ${imageBrain.summary()}" }
-        root.addView(button("Choisir une image") {
+        val ci = card(cBlue)
+        ci.addView(sectionTitle("\uD83D\uDDBC  Images (couleur)", cBlue))
+        imgLabel = field("Nom de l'image (ex: chat)")
+        imgStatus = status().also { it.text = "Appris : ${imageBrain.summary()}" }
+        ci.addView(pill("Choisir une image", cBlue, cBlueDark) {
             startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).apply { type = "image/*" }, 1)
         })
-        root.addView(imgLabel)
-        root.addView(row(
-            button("Apprendre") {
+        ci.addView(imgLabel, lp(10))
+        ci.addView(rowEqual(
+            pill("Apprendre", cBlue, cBlueDark) {
                 val b = currentBitmap; val l = imgLabel.text.toString().trim()
-                if (b == null || l.isEmpty()) { toast("Choisis une image ET un nom"); return@button }
+                if (b == null || l.isEmpty()) { toast("Choisis une image ET un nom"); return@pill }
                 imageBrain.learn(b, l); imgStatus.text = "Appris : ${imageBrain.summary()}"
             },
-            button("Deviner") {
-                val b = currentBitmap ?: return@button toast("Choisis une image")
+            pill("Deviner", cBlue, cBlueDark) {
+                val b = currentBitmap ?: return@pill toast("Choisis une image")
                 val r = imageBrain.guess(b); orchestrator.lastImage = r
                 imgStatus.text = "Je pense : « ${r.first} » (${(r.second * 100).toInt()}%)"
             }
-        ))
-        root.addView(button("\uD83D\uDDD1 Oublier les images") { imageBrain.forget(); imgStatus.text = "Mémoire images effacée." })
-        root.addView(imgStatus)
+        ), lp(10))
+        ci.addView(ghost("\uD83D\uDDD1 Oublier les images") { imageBrain.forget(); imgStatus.text = "Mémoire images effacée." }, lp(10))
+        ci.addView(imgStatus)
+        screen.addView(ci, lp(0))
 
         // ---------- SONS ----------
-        root.addView(title("\uD83C\uDFB5 IA Musique & Sons (FFT)"))
-        audLabel = EditText(this).apply { hint = "Nom du son (ex: guitare)" }
-        audStatus = TextView(this).apply { text = "Appris : ${audioBrain.summary()}" }
-        root.addView(button("Enregistrer 2 secondes") { record() })
-        root.addView(audLabel)
-        root.addView(row(
-            button("Apprendre") {
+        val cs = card(cPurple)
+        cs.addView(sectionTitle("\uD83C\uDFB5  Musique & Sons (FFT)", cPurple))
+        audLabel = field("Nom du son (ex: guitare)")
+        audStatus = status().also { it.text = "Appris : ${audioBrain.summary()}" }
+        cs.addView(pill("Enregistrer 2 secondes", cPurple, cPurpleDark) { record() })
+        cs.addView(audLabel, lp(10))
+        cs.addView(rowEqual(
+            pill("Apprendre", cPurple, cPurpleDark) {
                 val a = currentAudio; val l = audLabel.text.toString().trim()
-                if (a == null || l.isEmpty()) { toast("Enregistre un son ET un nom"); return@button }
+                if (a == null || l.isEmpty()) { toast("Enregistre un son ET un nom"); return@pill }
                 audioBrain.learn(a, l); audStatus.text = "Appris : ${audioBrain.summary()}"
             },
-            button("Deviner") {
-                val a = currentAudio ?: return@button toast("Enregistre un son")
+            pill("Deviner", cPurple, cPurpleDark) {
+                val a = currentAudio ?: return@pill toast("Enregistre un son")
                 val r = audioBrain.guess(a); orchestrator.lastAudio = r
                 audStatus.text = "J'entends : « ${r.first} » (${(r.second * 100).toInt()}%)"
             }
-        ))
-        root.addView(button("\uD83D\uDDD1 Oublier les sons") { audioBrain.forget(); audStatus.text = "Mémoire sons effacée." })
-        root.addView(audStatus)
+        ), lp(10))
+        cs.addView(ghost("\uD83D\uDDD1 Oublier les sons") { audioBrain.forget(); audStatus.text = "Mémoire sons effacée." }, lp(10))
+        cs.addView(audStatus)
+        screen.addView(cs, lp(16))
 
         // ---------- CODE ----------
-        root.addView(title("\uD83D\uDCBB IA Code & Texte"))
-        codeInput = EditText(this).apply { hint = "Colle du code à apprendre"; minLines = 3 }
-        codePrompt = EditText(this).apply { hint = "Début de code à compléter" }
-        codeStatus = TextView(this).apply { text = "Mémoire : ${codeBrain.size()} motifs" }
-        root.addView(codeInput)
-        root.addView(button("Apprendre ce code") {
+        val cc = card(cOrange)
+        cc.addView(sectionTitle("\uD83D\uDCBB  Code & Texte", cOrange))
+        codeInput = field("Colle du code à apprendre", 3)
+        codePrompt = field("Début de code à compléter")
+        codeStatus = status().also { it.text = "Mémoire : ${codeBrain.size()} motifs" }
+        cc.addView(codeInput)
+        cc.addView(pill("Apprendre ce code", cOrange, cOrangeDark) {
             val t = codeInput.text.toString()
-            if (t.length < 10) return@button toast("Colle au moins quelques lignes")
+            if (t.length < 10) return@pill toast("Colle au moins quelques lignes")
             codeBrain.learn(t); codeStatus.text = "Appris ! Mémoire : ${codeBrain.size()} motifs"; codeInput.setText("")
-        })
-        root.addView(codePrompt)
-        root.addView(row(
-            button("Compléter") { codeStatus.text = codeBrain.complete(codePrompt.text.toString()) },
-            button("\uD83D\uDDD1 Oublier") { codeBrain.forget(); codeStatus.text = "Mémoire code effacée." }
-        ))
-        root.addView(codeStatus)
+        }, lp(10))
+        cc.addView(codePrompt, lp(10))
+        cc.addView(rowEqual(
+            pill("Compléter", cOrange, cOrangeDark) { codeStatus.text = codeBrain.complete(codePrompt.text.toString()) },
+            ghost("\uD83D\uDDD1 Oublier") { codeBrain.forget(); codeStatus.text = "Mémoire code effacée." }
+        ), lp(10))
+        cc.addView(codeStatus)
+        screen.addView(cc, lp(16))
 
         // ---------- ORCHESTRATEUR ----------
-        root.addView(title("\uD83E\uDDE0 Les 3 IA réfléchissent ensemble"))
-        fusionOut = TextView(this)
-        root.addView(button("Penser ensemble") { fusionOut.text = orchestrator.thinkTogether() })
-        root.addView(fusionOut)
+        val cf = card(cInk)
+        cf.addView(sectionTitle("\uD83E\uDDE0  Réflexion commune", cInk))
+        fusionOut = TextView(this).apply {
+            setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f); setPadding(0, dp(8), 0, 0)
+        }
+        cf.addView(pill("Penser ensemble", Color.parseColor("#334155"), cInk) { fusionOut.text = orchestrator.thinkTogether() })
+        cf.addView(fusionOut)
+        screen.addView(cf, lp(16))
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(screen)
+        })
     }
 
     private fun record() {

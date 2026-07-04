@@ -71,6 +71,10 @@ class MainActivity : Activity() {
     private lateinit var audConf: ProgressBar
     private lateinit var liveConf: ProgressBar
     private lateinit var tabPunk: LinearLayout
+    private lateinit var tabChat: LinearLayout
+    private lateinit var chatBox: LinearLayout
+    private lateinit var chatInput: EditText
+    private lateinit var chatSource: Spinner
     private lateinit var punkArena: FrameLayout
     private lateinit var punkBox: LinearLayout
     private lateinit var punkImg: ImageView
@@ -232,7 +236,7 @@ class MainActivity : Activity() {
         })
 
         // Barre d'onglets
-        val tabNames = listOf("Entraîner", "Profils", "\uD83D\uDC76", "\uD83E\uDD18", "Tuto")
+        val tabNames = listOf("IA", "Profils", "\uD83D\uDC76", "\uD83E\uDD18", "\uD83D\uDCAC", "Tuto")
         tabButtons = tabNames.mapIndexed { i, n ->
             Button(this).apply {
                 text = n; isAllCaps = false; stateListAnimator = null
@@ -247,16 +251,19 @@ class MainActivity : Activity() {
         tabProfiles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabChild = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabPunk = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tabChat = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabTuto = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         buildTrainTab(tabTrain)
         buildProfilesTab(tabProfiles)
         buildChildTab(tabChild)
         buildPunkTab(tabPunk)
+        buildChatTab(tabChat)
         buildTutoTab(tabTuto)
         screen.addView(tabTrain, lp(14))
         screen.addView(tabProfiles, lp(14))
         screen.addView(tabChild, lp(14))
         screen.addView(tabPunk, lp(14))
+        screen.addView(tabChat, lp(14))
         screen.addView(tabTuto, lp(14))
 
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(screen) })
@@ -269,7 +276,8 @@ class MainActivity : Activity() {
         tabProfiles.visibility = if (i == 1) View.VISIBLE else View.GONE
         tabChild.visibility = if (i == 2) View.VISIBLE else View.GONE
         tabPunk.visibility = if (i == 3) View.VISIBLE else View.GONE
-        tabTuto.visibility = if (i == 4) View.VISIBLE else View.GONE
+        tabChat.visibility = if (i == 4) View.VISIBLE else View.GONE
+        tabTuto.visibility = if (i == 5) View.VISIBLE else View.GONE
         tabButtons.forEachIndexed { j, b ->
             b.setTextColor(if (i == j) Color.WHITE else cInk)
             b.typeface = if (i == j) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -282,6 +290,7 @@ class MainActivity : Activity() {
         if (i == 2) refreshChildTab()
         if (i == 3) refreshPunkTab()
         if (i != 3) punkRunning = false
+        if (i == 4) refreshChatSources()
     }
 
     // ============================================================
@@ -298,7 +307,7 @@ class MainActivity : Activity() {
         scanner = ScanTrainer(this, imageBrain, audioBrain, codeBrain)
         web = WebLearner(this, imageBrain, codeBrain)
         explorer = Explorer(this, web, imageBrain, audioBrain, codeBrain)
-        if (refreshUi) { refreshAllStatuses(); refreshProfilesTab(); toast("Profil « $name » activé") }
+        if (refreshUi) { refreshAllStatuses(); refreshProfilesTab(); loadChatHistory(); toast("Profil « $name » activé") }
     }
 
     private fun refreshAllStatuses() {
@@ -857,6 +866,13 @@ class MainActivity : Activity() {
             "\u2022 Elle se trompe ? Écris le bon nom et « Apprendre cette vue » : elle apprend sur le champ. C'est la façon la plus rapide et amusante de l'entraîner.\n" +
             "\u2022 Fais le tour de la maison : tasse, plante, télécommande... 5-6 vues par objet sous différents angles et elle devient bluffante.\n" +
             "\u2022 La vision en direct alimente aussi « Penser ensemble » (l'orchestrateur).")
+        tutoCard(Color.parseColor("#0891B2"), "\uD83D\uDCAC  Le Chat",
+            "Un seul endroit pour parler à tous tes cerveaux.\n\n" +
+            "\u2022 \uD83E\uDD16 AUTO : le plus malin disponible répond — cerveau distant s'il est activé, sinon ton enfant, sinon le cerveau code local.\n" +
+            "\u2022 Le cerveau distant reçoit le CONTEXTE de tes IA : ce qu'elles connaissent, ont vu et entendu — ses réponses parlent vraiment de TON app.\n" +
+            "\u2022 Chaque message que tu écris nourrit l'IA code : discuter, c'est entraîner.\n" +
+            "\u2022 Parler à l'enfant ici le fait grandir, comme dans son onglet.\n" +
+            "\u2022 \uD83C\uDFA4 micro, \uD83D\uDD0A voix, historique sauvegardé par profil, \uD83D\uDDD1 pour repartir de zéro.")
         tutoCard(Color.parseColor("#84CC16"), "\uD83E\uDD18  Le Punk",
             "Un punk se balade sur l'écran et pense à voix haute !\n\n" +
             "\u2022 Choisis quel cerveau l'habite : le cerveau code du profil actif, n'importe quel enfant de la fratrie, ou le cerveau distant (s'il est activé).\n" +
@@ -1183,6 +1199,157 @@ class MainActivity : Activity() {
     }
 
     // ============================================================
+    // ONGLET 💬 : LE CHAT — discuter avec tous les cerveaux au même endroit
+    private fun buildChatTab(box: LinearLayout) {
+        val cc = card(Color.parseColor("#0891B2"))
+        cc.addView(sectionTitle("\uD83D\uDCAC  Discuter avec IA Trio", Color.parseColor("#0891B2")))
+        cc.addView(TextView(this).apply {
+            text = "Une seule conversation, tous tes cerveaux. En mode Auto, le plus malin disponible répond — et le cerveau distant reçoit le CONTEXTE de tes IA (ce qu'elles ont vu, entendu, appris) pour des réponses personnalisées. Tout ce que tu écris nourrit aussi ton IA code."
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        chatSource = Spinner(this)
+        cc.addView(chatSource)
+        cc.addView(Switch(this).apply {
+            text = "\uD83D\uDD0A Réponses à voix haute"
+            setTextColor(cInk)
+            isChecked = getSharedPreferences("iatrio", 0).getBoolean("chat_voice", false)
+            setOnCheckedChangeListener { _, checked ->
+                getSharedPreferences("iatrio", 0).edit().putBoolean("chat_voice", checked).apply()
+            }
+        }, lp(6))
+        box.addView(cc, lp(0))
+
+        val cm2 = card(Color.parseColor("#0891B2"))
+        chatBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        cm2.addView(chatBox)
+        chatInput = field("Écris ton message...")
+        cm2.addView(chatInput, lp(10))
+        cm2.addView(rowEqual(
+            pill("Envoyer", Color.parseColor("#0891B2"), Color.parseColor("#0E7490")) {
+                val t = chatInput.text.toString().trim()
+                if (t.isEmpty()) return@pill toast("Écris quelque chose")
+                chatInput.setText("")
+                chatSend(t)
+            },
+            pill("\uD83C\uDFA4", Color.parseColor("#0891B2"), Color.parseColor("#0E7490")) {
+                try {
+                    val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+                    }
+                    startActivityForResult(i, 47)
+                } catch (e: Exception) { toast("Reconnaissance vocale indisponible") }
+            },
+            ghost("\uD83D\uDDD1") {
+                chatFile().delete(); chatBox.removeAllViews(); toast("Conversation effacée")
+            }
+        ), lp(10))
+        box.addView(cm2, lp(16))
+        loadChatHistory()
+    }
+
+    private fun refreshChatSources() {
+        if (!::chatSource.isInitialized) return
+        val opts = mutableListOf("\uD83E\uDD16 Auto (le plus malin dispo)", "\uD83D\uDCBB Cerveau code local")
+        childManager.currentName()?.let { opts.add("\uD83D\uDC76 Enfant : $it") }
+        if (remote.ready()) opts.add("\u2601\uFE0F Cerveau distant (${remote.provider.name})")
+        val keep = chatSource.selectedItemPosition
+        chatSource.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opts)
+        if (keep in opts.indices) chatSource.setSelection(keep)
+    }
+
+    private fun chatFile(): File = File(profiles.dir(profile.name), "chat.txt")
+
+    private fun addChatBubble(text: String, mine: Boolean): TextView {
+        val b = TextView(this).apply {
+            this.text = text
+            setTextColor(if (mine) Color.WHITE else cInk)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setPadding(dp(14), dp(9), dp(14), dp(9))
+            maxWidth = dp(280)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(if (mine) Color.parseColor("#0891B2") else Color.parseColor("#E2E8F0"))
+            }
+        }
+        val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        p.setMargins(0, dp(6), 0, 0)
+        val row = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            gravity = if (mine) Gravity.END else Gravity.START
+            addView(b, p)
+        }
+        chatBox.addView(row)
+        while (chatBox.childCount > 30) chatBox.removeViewAt(0)
+        return b
+    }
+
+    private fun loadChatHistory() {
+        if (!::chatBox.isInitialized) return
+        chatBox.removeAllViews()
+        try {
+            if (chatFile().exists()) {
+                chatFile().readLines().takeLast(20).forEach { line ->
+                    val i = line.indexOf('|')
+                    if (i > 0) addChatBubble(line.substring(i + 1).replace("\\n", "\n"), line.startsWith("U"))
+                }
+            }
+        } catch (e: Exception) { }
+    }
+
+    private fun chatPersist(prefix: String, text: String) {
+        try { chatFile().appendText(prefix + "|" + text.replace("\n", "\\n") + "\n") } catch (e: Exception) { }
+    }
+
+    private fun chatSend(msg: String) {
+        addChatBubble(msg, true)
+        chatPersist("U", msg)
+        codeBrain.learn(msg)   // la conversation nourrit aussi l'IA code
+        val waiting = addChatBubble("...", false)
+        val label = chatSource.selectedItem as? String ?: ""
+        val sel = chatSource.selectedItemPosition
+
+        fun reply(text: String, pitch: Float = 1.0f) {
+            val t = text.trim().ifBlank { "..." }
+            waiting.text = t
+            chatPersist("A", t)
+            if (ttsReady && getSharedPreferences("iatrio", 0).getBoolean("chat_voice", false)) {
+                try { tts?.setPitch(pitch); tts?.setSpeechRate(1.0f)
+                    tts?.speak(t.take(300), TextToSpeech.QUEUE_FLUSH, null, "chat") } catch (e: Exception) { }
+            }
+        }
+
+        val useRemote = label.contains("distant") || (sel == 0 && remote.ready())
+        val useChild = !useRemote && (label.contains("Enfant") || (sel == 0 && childManager.currentName() != null))
+        when {
+            useRemote -> {
+                val img = orchestrator.lastImage?.let { "vu récemment : ${it.first}." } ?: ""
+                val aud = orchestrator.lastAudio?.let { " Entendu : ${it.first}." } ?: ""
+                val known = (imageBrain.labels() + audioBrain.labels()).take(15).joinToString(", ")
+                val ctx = "Tu es IA Trio, l'assistant d'une app d'IA locale entraînée par l'utilisateur sur son téléphone. " +
+                        "Profil actif : « ${profile.name} ». L'IA locale connaît : $known. $img$aud " +
+                        "Réponds en français, bref (2-4 phrases), chaleureux. Message de l'utilisateur : $msg"
+                remote.ask(ctx) { reply(it) }
+            }
+            useChild -> {
+                val c = childManager.currentName()?.let { childManager.get(it) }
+                if (c != null) {
+                    c.listen(msg)
+                    reply("${c.name} : " + c.speak(msg), when {
+                        c.xp < 30 -> 1.6f; c.xp < 80 -> 1.35f; else -> 1.0f
+                    })
+                } else reply(codeBrain.complete(msg.takeLast(20), 150, profile.creativity))
+            }
+            else -> {
+                if (codeBrain.size() > 0)
+                    reply(codeBrain.complete(msg.takeLast(20), 150, profile.creativity))
+                else
+                    reply("Ma mémoire est vide ! Apprends-moi des choses (Wikipédia, exploration, scans...) et je te répondrai avec ce que je sais.")
+            }
+        }
+    }
+
+    // ============================================================
     // ONGLET 🤘 : LE PUNK — choisis un cerveau, libère-le sur l'écran
     private fun buildPunkTab(box: LinearLayout) {
         val cp = card(Color.parseColor("#84CC16"))
@@ -1481,6 +1648,11 @@ class MainActivity : Activity() {
                     audStatus.text = "Appris : ${audioBrain.summary()}"
                     codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
                 })
+            return
+        }
+        if (requestCode == 47 && resultCode == RESULT_OK) {
+            val heard = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (heard != null) chatSend(heard)
             return
         }
         if (requestCode == 45 && resultCode == RESULT_OK) {

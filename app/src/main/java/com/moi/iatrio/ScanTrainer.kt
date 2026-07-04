@@ -11,16 +11,18 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.BufferedReader
 import java.io.DataInputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.ByteOrder
 
 /**
- * ENTRAÎNEMENT MASSIF (v5) : parcourt un dossier choisi par l'utilisateur et
- * entraîne automatiquement les 3 IA. Tout reste 100% local.
- * - Images  : jpg jpeg png webp bmp gif        -> étiquette = dossier parent
- * - 3D      : obj stl -> projections 3 vues (R=dessus G=face B=côté) -> IA images
- * - Audio   : wav (lecture directe) + mp3 flac ogg m4a aac opus (décodeur Android)
- * - Textes  : ~30 formats de code et texte -> IA code
+ * ENTRAÎNEMENT MASSIF (v10) : deux modes.
+ * 1. scan(treeUri)  : un dossier choisi (sélecteur Android, marche pour la SD)
+ * 2. scanAll()      : TOUT le téléphone + carte(s) SD (permission "Tous les
+ *    fichiers" requise). Ignore les dossiers cachés et Android/ (système).
+ * Tout reste 100% local.
  */
 class ScanTrainer(
     private val activity: Activity,
@@ -34,7 +36,6 @@ class ScanTrainer(
     private val maxTexts = 60
     private val maxAudio = 60
     private val max3d = 40
-    private val maxVisited = 4000
 
     private val imgExt = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
     private val audioExt = setOf("mp3", "flac", "ogg", "m4a", "aac", "opus")
@@ -47,30 +48,28 @@ class ScanTrainer(
 
     private var nImg = 0; private var nTxt = 0; private var nAud = 0; private var n3d = 0
     private var visited = 0
+    private var visitLimit = 4000
 
+    // ==================== MODE 1 : DOSSIER CHOISI (SAF) ====================
     fun scan(treeUri: Uri, onProgress: (String) -> Unit, onDone: (String) -> Unit) {
         cancel = false
         nImg = 0; nTxt = 0; nAud = 0; n3d = 0; visited = 0
+        visitLimit = 4000
         Thread {
             try {
                 val rootId = DocumentsContract.getTreeDocumentId(treeUri)
                 val rootName = rootId.substringAfterLast(':').substringAfterLast('/')
                     .ifBlank { "racine" }
-                walk(treeUri, rootId, rootName, onProgress)
-                val msg = "Terminé ! $nImg images, $n3d modèles 3D, $nAud sons, $nTxt textes appris." +
-                        if (cancel) " (interrompu)" else ""
-                activity.runOnUiThread { onDone(msg) }
+                walkTree(treeUri, rootId, rootName, onProgress)
+                activity.runOnUiThread { onDone(doneMsg()) }
             } catch (e: Exception) {
                 activity.runOnUiThread { onDone("Erreur : ${e.message}") }
             }
         }.start()
     }
 
-    private fun full(): Boolean =
-        nImg >= maxImages && nTxt >= maxTexts && nAud >= maxAudio && n3d >= max3d
-
-    private fun walk(treeUri: Uri, docId: String, folderName: String, onProgress: (String) -> Unit) {
-        if (cancel || full() || visited > maxVisited) return
+    private fun walkTree(treeUri: Uri, docId: String, folderName: String, onProgress: (String) -> Unit) {
+        if (cancel || full() || visited > visitLimit) return
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
         val cursor = activity.contentResolver.query(
             childrenUri,
@@ -83,50 +82,119 @@ class ScanTrainer(
         ) ?: return
         cursor.use { c ->
             while (c.moveToNext()) {
-                if (cancel || full() || visited > maxVisited) return
+                if (cancel || full() || visited > visitLimit) return
                 visited++
                 val id = c.getString(0)
                 val name = c.getString(1) ?: continue
                 val mime = c.getString(2) ?: ""
                 if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    walk(treeUri, id, name, onProgress)
+                    walkTree(treeUri, id, name, onProgress)
                 } else {
-                    val ext = name.substringAfterLast('.', "").lowercase()
                     val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
-                    when {
-                        ext in imgExt && nImg < maxImages ->
-                            if (learnImage(uri, folderName)) { nImg++; progress(onProgress) }
-                        ext in d3Ext && n3d < max3d ->
-                            if (learn3d(uri, ext, folderName)) { n3d++; progress(onProgress) }
-                        ext == "wav" && nAud < maxAudio ->
-                            if (learnWav(uri, folderName)) { nAud++; progress(onProgress) }
-                        ext in audioExt && nAud < maxAudio ->
-                            if (learnCompressedAudio(uri, folderName)) { nAud++; progress(onProgress) }
-                        ext in txtExt && nTxt < maxTexts ->
-                            if (learnText(uri)) { nTxt++; progress(onProgress) }
-                    }
+                    dispatch(name, folderName, onProgress,
+                        streamProvider = { activity.contentResolver.openInputStream(uri) },
+                        audioSource = { decodeCompressedUri(uri) })
                 }
             }
         }
     }
+
+    // ==================== MODE 2 : TOUT LE TÉLÉPHONE + SD ====================
+    fun scanAll(onProgress: (String) -> Unit, onDone: (String) -> Unit) {
+        cancel = false
+        nImg = 0; nTxt = 0; nAud = 0; n3d = 0; visited = 0
+        visitLimit = 25_000   // scan complet : on visite beaucoup plus de fichiers
+        Thread {
+            try {
+                val roots = mutableListOf<File>()
+                val main = File("/storage/emulated/0")
+                if (main.canRead()) roots.add(main)
+                // Cartes SD / USB : /storage/XXXX-XXXX
+                File("/storage").listFiles()?.forEach {
+                    if (it.isDirectory && it.name != "emulated" && it.name != "self" && it.canRead())
+                        roots.add(it)
+                }
+                if (roots.isEmpty()) {
+                    activity.runOnUiThread { onDone("Aucun stockage lisible — as-tu accordé « Accès à tous les fichiers » ?") }
+                    return@Thread
+                }
+                for (r in roots) walkFile(r, if (r.name == "0") "telephone" else "carte-sd", onProgress)
+                activity.runOnUiThread { onDone(doneMsg() + " (${roots.size} stockage(s) parcourus)") }
+            } catch (e: Exception) {
+                activity.runOnUiThread { onDone("Erreur : ${e.message}") }
+            }
+        }.start()
+    }
+
+    private fun walkFile(dir: File, label: String, onProgress: (String) -> Unit) {
+        if (cancel || full() || visited > visitLimit) return
+        val kids = dir.listFiles() ?: return
+        for (f in kids) {
+            if (cancel || full() || visited > visitLimit) return
+            val name = f.name
+            if (name.startsWith(".")) continue                       // dossiers/fichiers cachés
+            if (f.isDirectory) {
+                if (name == "Android" || name == "LOST.DIR") continue // système : inaccessible/inutile
+                walkFile(f, name, onProgress)
+            } else {
+                visited++
+                dispatch(name, label, onProgress,
+                    streamProvider = { FileInputStream(f) },
+                    audioSource = { decodeCompressedPath(f.absolutePath) })
+            }
+        }
+    }
+
+    // ==================== DISPATCH COMMUN ====================
+    private fun dispatch(
+        fileName: String,
+        label: String,
+        onProgress: (String) -> Unit,
+        streamProvider: () -> InputStream?,
+        audioSource: () -> ShortArray?
+    ) {
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        when {
+            ext in imgExt && nImg < maxImages ->
+                if (learnImageStream(streamProvider, label)) { nImg++; progress(onProgress) }
+            ext in d3Ext && n3d < max3d ->
+                if (learn3dStream(streamProvider, ext, label)) { n3d++; progress(onProgress) }
+            ext == "wav" && nAud < maxAudio ->
+                if (learnWavStream(streamProvider, label)) { nAud++; progress(onProgress) }
+            ext in audioExt && nAud < maxAudio -> {
+                val pcm = audioSource()
+                if (pcm != null) {
+                    try { audio.learn(pcm, label); nAud++; progress(onProgress) } catch (e: Exception) { }
+                }
+            }
+            ext in txtExt && nTxt < maxTexts ->
+                if (learnTextStream(streamProvider)) { nTxt++; progress(onProgress) }
+        }
+    }
+
+    private fun full(): Boolean =
+        nImg >= maxImages && nTxt >= maxTexts && nAud >= maxAudio && n3d >= max3d
+
+    private fun doneMsg(): String =
+        "Terminé ! $nImg images, $n3d modèles 3D, $nAud sons, $nTxt textes appris." +
+                if (cancel) " (interrompu)" else ""
 
     private fun progress(onProgress: (String) -> Unit) {
         val t = "Scan... $nImg img, $n3d 3D, $nAud sons, $nTxt txt ($visited fichiers vus)"
         activity.runOnUiThread { onProgress(t) }
     }
 
-    // ---------- IMAGES ----------
-    private fun learnImage(uri: Uri, label: String): Boolean = try {
-        activity.contentResolver.openInputStream(uri)?.use { input ->
+    // ==================== APPRENTISSAGES (flux génériques) ====================
+    private fun learnImageStream(provider: () -> InputStream?, label: String): Boolean = try {
+        provider()?.use { input ->
             val opts = BitmapFactory.Options().apply { inSampleSize = 8 }
             val bmp = BitmapFactory.decodeStream(input, null, opts)
             if (bmp != null) { image.learn(bmp, label); bmp.recycle(); true } else false
         } ?: false
     } catch (e: Exception) { false }
 
-    // ---------- TEXTES / CODE ----------
-    private fun learnText(uri: Uri): Boolean = try {
-        activity.contentResolver.openInputStream(uri)?.use { input ->
+    private fun learnTextStream(provider: () -> InputStream?): Boolean = try {
+        provider()?.use { input ->
             val bytes = ByteArray(10_000)
             val n = input.read(bytes)
             if (n > 50) {
@@ -137,9 +205,8 @@ class ScanTrainer(
         } ?: false
     } catch (e: Exception) { false }
 
-    // ---------- AUDIO WAV ----------
-    private fun learnWav(uri: Uri, label: String): Boolean = try {
-        activity.contentResolver.openInputStream(uri)?.use { input ->
+    private fun learnWavStream(provider: () -> InputStream?, label: String): Boolean = try {
+        provider()?.use { input ->
             val din = DataInputStream(input)
             val header = ByteArray(44)
             din.readFully(header)
@@ -158,18 +225,19 @@ class ScanTrainer(
         } ?: false
     } catch (e: Exception) { false }
 
-    // ---------- AUDIO MP3/FLAC/OGG/M4A/AAC/OPUS via le décodeur Android ----------
-    private fun learnCompressedAudio(uri: Uri, label: String): Boolean {
-        val pcm = decodeCompressed(uri) ?: return false
-        return try { audio.learn(pcm, label); true } catch (e: Exception) { false }
-    }
+    // ==================== AUDIO COMPRESSÉ ====================
+    private fun decodeCompressedUri(uri: Uri): ShortArray? =
+        decodeWith { it.setDataSource(activity, uri, null) }
 
-    private fun decodeCompressed(uri: Uri): ShortArray? {
+    private fun decodeCompressedPath(path: String): ShortArray? =
+        decodeWith { it.setDataSource(path) }
+
+    private fun decodeWith(setSource: (MediaExtractor) -> Unit): ShortArray? {
         var extractor: MediaExtractor? = null
         var codec: MediaCodec? = null
         try {
             extractor = MediaExtractor()
-            extractor.setDataSource(activity, uri, null)
+            setSource(extractor)
             var track = -1
             var format: MediaFormat? = null
             for (i in 0 until extractor.trackCount) {
@@ -187,12 +255,12 @@ class ScanTrainer(
             codec.configure(format, null, null, 0)
             codec.start()
 
-            val wanted = sampleRate * 2   // 2 secondes, mono
+            val wanted = sampleRate * 2
             val out = ShortArray(wanted)
             var filled = 0
             val info = MediaCodec.BufferInfo()
             var inputDone = false
-            val deadline = System.currentTimeMillis() + 8000  // garde-fou 8s par fichier
+            val deadline = System.currentTimeMillis() + 8000
 
             while (filled < wanted && System.currentTimeMillis() < deadline) {
                 if (!inputDone) {
@@ -217,7 +285,7 @@ class ScanTrainer(
                     val n = sb.remaining()
                     var i = 0
                     while (i < n && filled < wanted) {
-                        out[filled++] = sb.get(i)  // canal gauche si stéréo
+                        out[filled++] = sb.get(i)
                         i += channels
                     }
                     codec.releaseOutputBuffer(outIdx, false)
@@ -233,31 +301,47 @@ class ScanTrainer(
         }
     }
 
-    // ---------- FICHIERS 3D (OBJ / STL) ----------
-    // On lit les sommets du modèle, puis on fabrique une mini-image 8x8 où
-    // R = vue de dessus (XY), G = vue de face (XZ), B = vue de côté (YZ).
-    // L'IA images apprend ainsi la FORME 3D avec le dossier comme étiquette.
-    private fun learn3d(uri: Uri, ext: String, label: String): Boolean {
+    // ==================== FICHIERS 3D (OBJ / STL) ====================
+    private fun learn3dStream(provider: () -> InputStream?, ext: String, label: String): Boolean {
         val verts = try {
-            when (ext) {
-                "obj" -> readObj(uri)
-                else -> readStl(uri)
-            }
+            provider()?.use { if (ext == "obj") readObj(it) else readStl(it) }
         } catch (e: Exception) { null } ?: return false
         if (verts.size < 30) return false
         val bmp = projectTo3Views(verts) ?: return false
         return try { image.learn(bmp, label); bmp.recycle(); true } catch (e: Exception) { false }
     }
 
-    private fun readObj(uri: Uri): List<FloatArray>? =
-        activity.contentResolver.openInputStream(uri)?.use { input ->
-            val verts = ArrayList<FloatArray>()
-            val br = BufferedReader(InputStreamReader(input))
+    private fun readObj(input: InputStream): List<FloatArray> {
+        val verts = ArrayList<FloatArray>()
+        val br = BufferedReader(InputStreamReader(input))
+        var line: String?
+        var count = 0
+        while (br.readLine().also { line = it } != null && count < 20_000) {
+            val l = line!!
+            if (l.startsWith("v ")) {
+                val p = l.split(" ", "\t").filter { it.isNotBlank() }
+                if (p.size >= 4) {
+                    val x = p[1].toFloatOrNull(); val y = p[2].toFloatOrNull(); val z = p[3].toFloatOrNull()
+                    if (x != null && y != null && z != null) { verts.add(floatArrayOf(x, y, z)); count++ }
+                }
+            }
+        }
+        return verts
+    }
+
+    private fun readStl(input: InputStream): List<FloatArray>? {
+        val head = ByteArray(84)
+        val hn = input.read(head)
+        if (hn < 84) return null
+        val headText = String(head, 0, 5, Charsets.US_ASCII).lowercase()
+        val verts = ArrayList<FloatArray>()
+        if (headText == "solid") {
+            val rest = BufferedReader(InputStreamReader(input))
             var line: String?
             var count = 0
-            while (br.readLine().also { line = it } != null && count < 20_000) {
-                val l = line!!
-                if (l.startsWith("v ")) {
+            while (rest.readLine().also { line = it } != null && count < 20_000) {
+                val l = line!!.trim()
+                if (l.startsWith("vertex")) {
                     val p = l.split(" ", "\t").filter { it.isNotBlank() }
                     if (p.size >= 4) {
                         val x = p[1].toFloatOrNull(); val y = p[2].toFloatOrNull(); val z = p[3].toFloatOrNull()
@@ -265,50 +349,22 @@ class ScanTrainer(
                     }
                 }
             }
-            verts
-        }
-
-    private fun readStl(uri: Uri): List<FloatArray>? =
-        activity.contentResolver.openInputStream(uri)?.use { input ->
-            val head = ByteArray(84)
-            val hn = input.read(head)
-            if (hn < 84) return null
-            val headText = String(head, 0, 5, Charsets.US_ASCII).lowercase()
-            val verts = ArrayList<FloatArray>()
-            if (headText == "solid") {
-                // STL ASCII : lignes "vertex x y z"
-                val rest = BufferedReader(InputStreamReader(input))
-                var line: String?
-                var count = 0
-                while (rest.readLine().also { line = it } != null && count < 20_000) {
-                    val l = line!!.trim()
-                    if (l.startsWith("vertex")) {
-                        val p = l.split(" ", "\t").filter { it.isNotBlank() }
-                        if (p.size >= 4) {
-                            val x = p[1].toFloatOrNull(); val y = p[2].toFloatOrNull(); val z = p[3].toFloatOrNull()
-                            if (x != null && y != null && z != null) { verts.add(floatArrayOf(x, y, z)); count++ }
-                        }
-                    }
-                }
-            } else {
-                // STL binaire : nb triangles (uint32 LE) puis 50 octets/triangle
-                val nTri = ((head[83].toInt() and 0xFF) shl 24) or ((head[82].toInt() and 0xFF) shl 16) or
-                        ((head[81].toInt() and 0xFF) shl 8) or (head[80].toInt() and 0xFF)
-                val limit = minOf(nTri, 6000)
-                val tri = ByteArray(50)
-                val din = DataInputStream(input)
-                for (t in 0 until limit) {
-                    try { din.readFully(tri) } catch (e: Exception) { break }
-                    // 12 octets de normale, puis 3 sommets de 12 octets
-                    for (v in 0 until 3) {
-                        val off = 12 + v * 12
-                        val x = leFloat(tri, off); val y = leFloat(tri, off + 4); val z = leFloat(tri, off + 8)
-                        verts.add(floatArrayOf(x, y, z))
-                    }
+        } else {
+            val nTri = ((head[83].toInt() and 0xFF) shl 24) or ((head[82].toInt() and 0xFF) shl 16) or
+                    ((head[81].toInt() and 0xFF) shl 8) or (head[80].toInt() and 0xFF)
+            val limit = minOf(nTri, 6000)
+            val tri = ByteArray(50)
+            val din = DataInputStream(input)
+            for (t in 0 until limit) {
+                try { din.readFully(tri) } catch (e: Exception) { break }
+                for (v in 0 until 3) {
+                    val off = 12 + v * 12
+                    verts.add(floatArrayOf(leFloat(tri, off), leFloat(tri, off + 4), leFloat(tri, off + 8)))
                 }
             }
-            verts
         }
+        return verts
+    }
 
     private fun leFloat(b: ByteArray, o: Int): Float {
         val bits = (b[o].toInt() and 0xFF) or ((b[o + 1].toInt() and 0xFF) shl 8) or
@@ -317,7 +373,6 @@ class ScanTrainer(
     }
 
     private fun projectTo3Views(verts: List<FloatArray>): Bitmap? {
-        // normaliser dans [0,1]
         var minX = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE
         var minY = Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
         var minZ = Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
@@ -329,11 +384,10 @@ class ScanTrainer(
         val dx = (maxX - minX).takeIf { it > 0 } ?: return null
         val dy = (maxY - minY).takeIf { it > 0 } ?: 1f
         val dz = (maxZ - minZ).takeIf { it > 0 } ?: 1f
-
         val g = 8
-        val xy = Array(g) { IntArray(g) }  // vue de dessus
-        val xz = Array(g) { IntArray(g) }  // vue de face
-        val yz = Array(g) { IntArray(g) }  // vue de côté
+        val xy = Array(g) { IntArray(g) }
+        val xz = Array(g) { IntArray(g) }
+        val yz = Array(g) { IntArray(g) }
         for (v in verts) {
             val ix = (((v[0] - minX) / dx) * (g - 1)).toInt().coerceIn(0, g - 1)
             val iy = (((v[1] - minY) / dy) * (g - 1)).toInt().coerceIn(0, g - 1)

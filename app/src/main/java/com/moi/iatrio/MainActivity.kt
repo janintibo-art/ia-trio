@@ -12,11 +12,15 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import java.io.File
 
 class MainActivity : Activity() {
 
@@ -342,6 +346,9 @@ class MainActivity : Activity() {
             },
             ghost("Stop") { scanner.cancel = true }
         ))
+        cm.addView(pill("\uD83D\uDCF1 TOUT scanner (téléphone + SD)", cGreenDark, Color.parseColor("#047857")) {
+            startFullScan()
+        }, lp(10))
         cm.addView(scanStatus)
         box.addView(cm, lp(16))
 
@@ -479,6 +486,10 @@ class MainActivity : Activity() {
             newProfileName.setText("")
             loadProfile(n)
         }, lp(10))
+        cl.addView(rowEqual(
+            pill("\uD83D\uDCBE Sauvegarder", Color.parseColor("#64748B"), Color.parseColor("#475569")) { backupProfile() },
+            pill("\u267B\uFE0F Restaurer", Color.parseColor("#64748B"), Color.parseColor("#475569")) { restoreProfile() }
+        ), lp(10))
         box.addView(cl, lp(16))
 
         // Cerveau distant (Gemini)
@@ -588,7 +599,8 @@ class MainActivity : Activity() {
             "2. Dedans, crée un sous-dossier par catégorie : chats/, chiens/, rock/, jazz/...\n" +
             "3. Mets photos, musiques ou modèles 3D dans le bon dossier.\n" +
             "4. Onglet Entraîner → Choisir un dossier → sélectionne Entrainement/.\n\n" +
-            "Le nom de chaque sous-dossier devient l'étiquette. Tu peux relancer plusieurs scans, les IA cumulent tout.")
+            "Le nom de chaque sous-dossier devient l'étiquette. Tu peux relancer plusieurs scans, les IA cumulent tout.\n\n" +
+            "TOUT SCANNER : le bouton « TOUT scanner » parcourt l'intégralité du téléphone ET de la carte SD. Android demandera « Accès à tous les fichiers » : active-le pour IA Trio puis relance. Parfait pour un gros bagage général ; des dossiers bien rangés restent plus précis.")
         tutoCard(Color.parseColor("#0EA5E9"), "\uD83C\uDF10  Bien utiliser Internet",
             "\u2022 Texte \u2192 IA code : colle l'URL d'un article, d'une doc, d'un blog. Le texte nourrit les complétions.\n" +
             "\u2022 Images \u2192 IA images : colle l'URL d'une page pleine de photos du même sujet (ex: une recherche d'images de chats), donne l'étiquette « chat », et hop : jusqu'à 8 images apprises d'un coup.\n" +
@@ -720,6 +732,73 @@ class MainActivity : Activity() {
             })
             childListBox.addView(row, lp(8))
         }
+    }
+
+    // ============================================================
+    // Sauvegarde / restauration du profil actif dans Download/IATrio/
+    private fun backupDir(): File =
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "IATrio/${profile.name}")
+
+    private fun backupProfile() {
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+            toast("Autorise d'abord « Accès à tous les fichiers » (bouton TOUT scanner)"); return
+        }
+        try {
+            val dest = backupDir().apply { mkdirs() }
+            var n = 0
+            profiles.dir(profile.name).listFiles()?.forEach { f ->
+                if (f.isFile) { f.copyTo(File(dest, f.name), overwrite = true); n++ }
+            }
+            toast("Profil « ${profile.name} » sauvegardé ($n fichiers) dans Download/IATrio/")
+        } catch (e: Exception) { toast("Erreur sauvegarde : ${e.message}") }
+    }
+
+    private fun restoreProfile() {
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+            toast("Autorise d'abord « Accès à tous les fichiers » (bouton TOUT scanner)"); return
+        }
+        try {
+            val srcDir = backupDir()
+            if (!srcDir.exists()) { toast("Aucune sauvegarde trouvée dans Download/IATrio/${profile.name}"); return }
+            var n = 0
+            srcDir.listFiles()?.forEach { f ->
+                if (f.isFile) { f.copyTo(File(profiles.dir(profile.name), f.name), overwrite = true); n++ }
+            }
+            loadProfile(profile.name)   // recharge les cerveaux restaurés
+            toast("Profil restauré ($n fichiers) \u2714")
+        } catch (e: Exception) { toast("Erreur restauration : ${e.message}") }
+    }
+
+    // ============================================================
+    // Scan complet : demande la permission "Tous les fichiers" si besoin
+    private fun startFullScan() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            if (!Environment.isExternalStorageManager()) {
+                toast("Autorise « Accès à tous les fichiers » puis reviens et relance")
+                try {
+                    startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:$packageName")))
+                } catch (e: Exception) {
+                    startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                }
+                return
+            }
+        } else {
+            if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE), 43)
+                return
+            }
+        }
+        scanStatus.text = "Scan complet en cours... (peut prendre plusieurs minutes)"
+        scanner.scanAll(
+            onProgress = { scanStatus.text = it },
+            onDone = {
+                scanStatus.text = it
+                imgStatus.text = "Appris : ${imageBrain.summary()}"
+                audStatus.text = "Appris : ${audioBrain.summary()}"
+                codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
+            })
     }
 
     // ============================================================

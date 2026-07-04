@@ -1,30 +1,27 @@
-# Nouveautés v9 — L'IA Enfant 👶
+# Nouveautés v10 — Scan complet & Sauvegardes
 
-- **Nouvel onglet « 👶 Enfant »** : donne naissance à une IA qui n'existait pas !
-- **Naissance** : l'enfant hérite des 3 IA du profil actif (extrait de mémoire
-  texte + vocabulaire des images et sons connus) et reçoit des **gènes avec
-  mutations aléatoires** : curiosité, calme, créativité, mot préféré.
-  Chaque enfant est unique — impossible d'avoir deux fois le même.
-- **Croissance** : nouveau-né 🍼 (gazouillis) → bébé 👶 → enfant 🧒 → ado 🎧
-  (avec du caractère !) → adulte 🧠. Chaque message que tu lui envoies lui
-  donne de l'expérience et améliore son langage.
-- **Humeurs** : joyeux, curieux, rêveur, espiègle, câlin, somnolent — selon
-  son caractère et son vécu.
-- **« Hériter des parents »** : transmet d'un coup un morceau du savoir des
-  3 IA à l'enfant.
-- **La fratrie** : élève plusieurs enfants, passe de l'un à l'autre, compare
-  leurs personnalités. Chacun a sa mémoire totalement séparée.
-- Section tutoriel dédiée.
+- **Bouton « 📱 TOUT scanner (téléphone + SD) »** : parcourt l'intégralité du
+  stockage interne ET des cartes SD/USB, sans rien sélectionner. Android
+  demandera la permission « Accès à tous les fichiers » (l'app ouvre
+  directement le bon écran de réglages) : active-la puis relance.
+  - Ignore les dossiers cachés et Android/ (système).
+  - Limite de visite passée à 25 000 fichiers pour le scan complet.
+  - Les étiquettes = noms des dossiers réels traversés.
+- **💾 Sauvegarder / ♻️ Restaurer le profil actif** (onglet Profils) : copie les
+  mémoires du profil dans Download/IATrio/<nom>/ — tu ne perds plus tes
+  cerveaux si tu réinstalles l'app, et tu peux même copier ce dossier sur un
+  autre téléphone !
+- Le sélecteur de dossier classique reste disponible pour des scans ciblés.
 
-# v8 — Cerveau distant  # v7 — Internet  # v6 — Profils
-# v5 — Formats  # v4 — Scan massif  # v3 — Graphisme  # v2 — Intelligence
+# v9 — IA Enfant  # v8 — Cerveau distant  # v7 — Internet
+# v6 — Profils  # v5 — Formats  # v4 — Scan  # v3 — Graphisme  # v2 — Intelligence
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v9.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v10.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v9 ia enfant"
+git commit -m "v10 scan complet sauvegardes"
 git push
 ```

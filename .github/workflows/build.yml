@@ -1,5 +1,7 @@
 name: Construire APK
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,9 +17,22 @@ jobs:
           (curl -L --retry 3 -o /tmp/mn.zip https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant_and_labels.zip \
             && unzip -o /tmp/mn.zip -d app/src/main/assets \
             && ls app/src/main/assets) || echo "Modele non telecharge - l'app utilisera le mode pixels"
+      - name: Telecharger YAMNet (audio)
+        run: |
+          (curl -L --retry 3 -o app/src/main/assets/yamnet.tflite https://storage.googleapis.com/tfhub-lite-models/google/lite-model/yamnet/classification/tflite/1.tflite \
+            && curl -L --retry 3 -o app/src/main/assets/yamnet_class_map.csv https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv \
+            && ls -la app/src/main/assets) || echo "YAMNet non telecharge - repli FFT"
       - uses: gradle/actions/setup-gradle@v3
-      - run: gradle assembleDebug
+      - run: gradle assembleRelease
+      - name: Renommer l'APK
+        run: cp app/build/outputs/apk/release/app-release.apk ia-trio.apk
       - uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ia-trio.apk
+      - name: Publier la Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: IA Trio v${{ github.run_number }}
+          files: ia-trio.apk

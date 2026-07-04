@@ -61,11 +61,12 @@ class TFVision private constructor(
         return DoubleArray(1001) { (out[it].toInt() and 0xFF) / 255.0 }
     }
 
-    /** Ce que MobileNet reconnaît tout seul (parmi ~1000 objets, en anglais). */
+    /** Ce que MobileNet reconnaît tout seul (parmi ~1000 objets). */
     fun classify(bmp: Bitmap): Pair<String, Int> {
         val l = logits(bmp)
         var best = 0
         for (i in l.indices) if (l[i] > l[best]) best = i
-        return Pair(labels.getOrElse(best) { "?" }, (l[best] * 100).toInt())
+        val raw = labels.getOrElse(best) { "?" }
+        return Pair(FrenchLabels.translate(raw), (l[best] * 100).toInt())
     }
 }

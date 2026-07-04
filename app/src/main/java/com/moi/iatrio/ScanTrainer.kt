@@ -211,7 +211,9 @@ class ScanTrainer(
             val header = ByteArray(44)
             din.readFully(header)
             if (header[0].toInt() != 'R'.code || header[8].toInt() != 'W'.code) return false
-            val raw = ByteArray(64_000)
+            val rate = (header[24].toInt() and 0xFF) or ((header[25].toInt() and 0xFF) shl 8) or
+                    ((header[26].toInt() and 0xFF) shl 16) or ((header[27].toInt() and 0xFF) shl 24)
+            val raw = ByteArray(if (rate > 30000) 180_000 else 64_000)
             val n = din.read(raw)
             if (n > 2000) {
                 val pcm = ShortArray(n / 2)
@@ -220,7 +222,7 @@ class ScanTrainer(
                     val hi = raw[i * 2 + 1].toInt()
                     pcm[i] = ((hi shl 8) or lo).toShort()
                 }
-                audio.learn(pcm, label); true
+                audio.learn(resampleTo16k(pcm, if (rate in 8000..192000) rate else 16000), label); true
             } else false
         } ?: false
     } catch (e: Exception) { false }
@@ -292,12 +294,21 @@ class ScanTrainer(
                     if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) break
                 }
             }
-            return if (filled > 2000) out.copyOf(filled) else null
+            return if (filled > 2000) resampleTo16k(out.copyOf(filled), sampleRate) else null
         } catch (e: Exception) {
             return null
         } finally {
             try { codec?.stop(); codec?.release() } catch (e: Exception) { }
             try { extractor?.release() } catch (e: Exception) { }
+        }
+    }
+
+    /** Rééchantillonnage simple vers 16 kHz (YAMNet l'exige). */
+    private fun resampleTo16k(pcm: ShortArray, rate: Int): ShortArray {
+        if (rate == 16000 || rate <= 0) return pcm
+        val outN = (pcm.size.toLong() * 16000 / rate).toInt().coerceAtLeast(1)
+        return ShortArray(outN) { i ->
+            pcm[(i.toLong() * rate / 16000).toInt().coerceAtMost(pcm.size - 1)]
         }
     }
 

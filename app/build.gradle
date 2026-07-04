@@ -5,6 +5,20 @@ plugins {
 android {
     namespace 'com.moi.iatrio'
     compileSdk 34
+    signingConfigs {
+        release {
+            storeFile file('iatrio.keystore')
+            storePassword 'iatrio2026'
+            keyAlias 'iatrio'
+            keyPassword 'iatrio2026'
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
     defaultConfig {
         applicationId "com.moi.iatrio"
         minSdk 26

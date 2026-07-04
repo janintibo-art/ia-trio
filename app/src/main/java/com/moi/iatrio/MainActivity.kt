@@ -61,6 +61,7 @@ class MainActivity : Activity() {
     private lateinit var remoteSwitch: Switch
     private lateinit var providerSpinner: Spinner
     private var tfVision: TFVision? = null
+    private var tfAudio: TFAudio? = null
     private lateinit var imgConf: ProgressBar
     private lateinit var audConf: ProgressBar
     private lateinit var liveConf: ProgressBar
@@ -77,6 +78,9 @@ class MainActivity : Activity() {
     private var punkPause = 0
     private var lastRemoteThought = 0L
     private var punkShowingFace = true
+    private var punkFrame = -1
+    private val punkWalk = listOf(R.drawable.punk_walk_0, R.drawable.punk_walk_1, R.drawable.punk_walk_2,
+        R.drawable.punk_walk_3, R.drawable.punk_walk_4, R.drawable.punk_walk_5)
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -192,6 +196,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tfVision = TFVision.tryLoad(this)
+        tfAudio = TFAudio.tryLoad(this)
         remote = RemoteBrain(this)
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -282,7 +287,7 @@ class MainActivity : Activity() {
         profiles.saveBehavior(profile) // crée behavior.txt si absent
         val d = profiles.dir(name)
         imageBrain = ImageBrain(d, tfVision)
-        audioBrain = AudioBrain(d)
+        audioBrain = AudioBrain(d, tfAudio)
         codeBrain = CodeBrain(d)
         orchestrator = Orchestrator(imageBrain, audioBrain, codeBrain)
         scanner = ScanTrainer(this, imageBrain, audioBrain, codeBrain)
@@ -391,7 +396,7 @@ class MainActivity : Activity() {
 
         // Sons
         val cs = card(cPurple)
-        cs.addView(sectionTitle("\uD83C\uDFB5  Musique & Sons (FFT)", cPurple))
+        cs.addView(sectionTitle(if (tfAudio != null) "\uD83C\uDFB5  Musique & Sons (YAMNet \uD83E\uDDE0)" else "\uD83C\uDFB5  Musique & Sons (FFT)", cPurple))
         audLabel = field("Nom du son (ex: guitare)")
         audStatus = status()
         cs.addView(pill("Enregistrer 2 secondes", cPurple, cPurpleDark) { record() })
@@ -405,7 +410,8 @@ class MainActivity : Activity() {
             pill("Deviner", cPurple, cPurpleDark) {
                 val a = currentAudio ?: return@pill toast("Enregistre un son")
                 val r = audioBrain.guess(a); orchestrator.lastAudio = r
-                audStatus.text = verdict(r, "J'entends :")
+                val preA = audioBrain.preKnowledge(a)?.let { "\nBase YAMNet : $it" } ?: ""
+                audStatus.text = verdict(r, "J'entends :") + preA
                 setConf(audConf, (r.second * 100).toInt())
             }
         ), lp(10))
@@ -894,6 +900,15 @@ class MainActivity : Activity() {
             }
         }, lp(10))
         cd.addView(Switch(this).apply {
+            text = "\uD83D\uDD14 Rappel quotidien (18h) : il réclame de l'attention"
+            setTextColor(cInk)
+            isChecked = getSharedPreferences("iatrio", 0).getBoolean("daily_notif", false)
+            setOnCheckedChangeListener { _, checked ->
+                getSharedPreferences("iatrio", 0).edit().putBoolean("daily_notif", checked).apply()
+                if (checked) enableDailyReminder() else disableDailyReminder()
+            }
+        }, lp(6))
+        cd.addView(Switch(this).apply {
             text = "\uD83D\uDD0A L'enfant répond à voix haute"
             setTextColor(cInk)
             isChecked = getSharedPreferences("iatrio", 0).getBoolean("child_voice", true)
@@ -928,6 +943,10 @@ class MainActivity : Activity() {
             refreshChildTab()
             childTalkOut.text = "\uD83C\uDF89 ${child!!.name} est né(e) du croisement de $a et $b ! " + child!!.speak("bonjour")
         }, lp(8))
+        cf2.addView(rowEqual(
+            pill("\uD83D\uDCE4 Exporter l'enfant", Color.parseColor("#94A3B8"), Color.parseColor("#64748B")) { exportChild() },
+            pill("\uD83D\uDCE5 Importer", Color.parseColor("#94A3B8"), Color.parseColor("#64748B")) { importChildren() }
+        ), lp(12))
         box.addView(cf2, lp(16))
     }
 
@@ -1027,6 +1046,15 @@ class MainActivity : Activity() {
         super.onPause()
         stopLive()
         punkRunning = false
+        // Sauvegarde automatique silencieuse du profil actif
+        try {
+            if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) {
+                val dest = backupDir().apply { mkdirs() }
+                profiles.dir(profile.name).listFiles()?.forEach { f ->
+                    if (f.isFile) f.copyTo(File(dest, f.name), overwrite = true)
+                }
+            }
+        } catch (e: Exception) { }
     }
 
     // ============================================================
@@ -1193,15 +1221,24 @@ class MainActivity : Activity() {
                 if (Math.random() < 0.005) punkDir = -punkDir
             }
             punkBox.translationX = punkX
-            // profil quand il marche, face vers nous quand il s'arrête pour penser
+            // cycle de marche 3D quand il avance, face vers nous quand il pense
             val paused = punkPause > 0
-            if (paused != punkShowingFace) {
-                punkImg.setImageResource(if (paused) R.drawable.punk_face else R.drawable.punk)
-                punkShowingFace = paused
+            if (paused) {
+                if (!punkShowingFace) {
+                    punkImg.setImageResource(R.drawable.punk_face)
+                    punkShowingFace = true; punkFrame = -1
+                }
+                punkImg.scaleX = 1f
+                punkImg.translationY = 0f
+            } else {
+                val f = (punkTicks / 3) % punkWalk.size
+                if (f != punkFrame || punkShowingFace) {
+                    punkImg.setImageResource(punkWalk[f])
+                    punkFrame = f; punkShowingFace = false
+                }
+                punkImg.scaleX = punkDir.toFloat()
+                punkImg.translationY = 0f
             }
-            punkImg.scaleX = if (paused) 1f else punkDir.toFloat()
-            // petit rebond de marche
-            punkImg.translationY = if (paused) 0f else (if (punkTicks % 8 < 4) 0f else -dp(3).toFloat())
         }
         punkTicks++
         if (punkTicks % 90 == 0) punkThought()
@@ -1279,6 +1316,71 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         try { tts?.shutdown() } catch (e: Exception) { }
+    }
+
+    // ============================================================
+    // Rappel quotidien 🔔
+    private fun enableDailyReminder() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 46)
+        }
+        val am = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
+        val pi = android.app.PendingIntent.getBroadcast(
+            this, 7, Intent(this, DailyReceiver::class.java),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 18); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        am.setInexactRepeating(android.app.AlarmManager.RTC_WAKEUP, cal.timeInMillis,
+            android.app.AlarmManager.INTERVAL_DAY, pi)
+        toast("Rappel quotidien activé (vers 18h)")
+    }
+
+    private fun disableDailyReminder() {
+        val am = getSystemService(ALARM_SERVICE) as android.app.AlarmManager
+        val pi = android.app.PendingIntent.getBroadcast(
+            this, 7, Intent(this, DailyReceiver::class.java),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        am.cancel(pi)
+        toast("Rappel désactivé")
+    }
+
+    // ============================================================
+    // Partage d'enfants 📤📥 via Download/IATrio/enfants/
+    private fun childrenShareDir(): File =
+        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "IATrio/enfants")
+
+    private fun exportChild() {
+        val c = child ?: return toast("Aucun enfant actif à exporter")
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager())
+            return toast("Autorise « Accès à tous les fichiers » (bouton TOUT scanner)")
+        try {
+            val dest = File(childrenShareDir(), c.name).apply { mkdirs() }
+            var n = 0
+            c.dir.listFiles()?.forEach { f -> if (f.isFile) { f.copyTo(File(dest, f.name), overwrite = true); n++ } }
+            toast("« ${c.name} » exporté ($n fichiers) dans Download/IATrio/enfants/ — envoie ce dossier à un ami !")
+        } catch (e: Exception) { toast("Erreur export : ${e.message}") }
+    }
+
+    private fun importChildren() {
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager())
+            return toast("Autorise « Accès à tous les fichiers » (bouton TOUT scanner)")
+        try {
+            val srcRoot = childrenShareDir()
+            if (!srcRoot.exists()) return toast("Rien à importer dans Download/IATrio/enfants/")
+            var n = 0
+            srcRoot.listFiles()?.forEach { dir ->
+                if (dir.isDirectory) {
+                    val target = childManager.get(dir.name).dir
+                    dir.listFiles()?.forEach { f -> if (f.isFile) f.copyTo(File(target, f.name), overwrite = true) }
+                    n++
+                }
+            }
+            refreshChildTab()
+            toast("$n enfant(s) importé(s) ! Bienvenue dans la fratrie \uD83D\uDC6A")
+        } catch (e: Exception) { toast("Erreur import : ${e.message}") }
     }
 
     // ============================================================

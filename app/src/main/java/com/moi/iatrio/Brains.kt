@@ -78,11 +78,12 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
 /**
  * IA n°2 : SONS (v2) — analyse par DFT (Fourier), 32 bandes de fréquences.
  */
-class AudioBrain(dir: File) {
+class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
     private val bands = 32
-    private val net = NeuralNet(bands, 32)
-    private val file = File(dir, "audio.net")
-    private val samples = File(dir, "samples_aud.txt")
+    private val nIn = if (tfa != null) 521 else bands
+    private val net = NeuralNet(nIn, if (tfa != null) 64 else 32)
+    private val file = File(dir, if (tfa != null) "audio_tf.net" else "audio.net")
+    private val samples = File(dir, if (tfa != null) "samples_aud_tf.txt" else "samples_aud.txt")
     init { if (file.exists()) net.load(file) }
 
     private fun remember(x: DoubleArray, label: String) {
@@ -94,7 +95,7 @@ class AudioBrain(dir: File) {
     }
 
     /** Examen : l'IA repasse sur tous les échantillons mémorisés. */
-    fun exam(): String = examOn(samples, bands) { net.predict(it).first }
+    fun exam(): String = examOn(samples, nIn) { net.predict(it).first }
 
     private fun features(pcm: ShortArray): DoubleArray {
         val n = 512
@@ -121,13 +122,22 @@ class AudioBrain(dir: File) {
         return x
     }
 
+    /** Caractéristiques : YAMNet (521) si dispo, sinon FFT maison (32). */
+    private fun feat(pcm: ShortArray): DoubleArray = tfa?.scores(pcm) ?: features(pcm)
+
     fun learn(pcm: ShortArray, label: String) {
-        val x = features(pcm)
+        val x = feat(pcm)
         remember(x, label)
         net.train(x, label)
         net.save(file)
     }
-    fun guess(pcm: ShortArray) = net.predict(features(pcm))
+    fun guess(pcm: ShortArray) = net.predict(feat(pcm))
+
+    /** Ce que la base YAMNet reconnaît toute seule (~520 sons). */
+    fun preKnowledge(pcm: ShortArray): String? =
+        tfa?.classify(pcm)?.let { "${it.first} (${it.second}%)" }
+
+    fun usingTF(): Boolean = tfa != null
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
     fun forget() { net.reset(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete() }

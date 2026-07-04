@@ -1,27 +1,29 @@
-# Nouveautés v11 — Vision en direct & Croisements 👁💞
+# Nouveautés v12 — Examen 🏆 & Voix de l'enfant 🎤🔊
 
-- **👁 Vision en direct** (carte turquoise, onglet Entraîner) : l'IA images
-  regarde par la caméra et devine EN TEMPS RÉEL ce qu'elle voit (~1 image/s).
-  - Elle se trompe ? Tape le bon nom et « Apprendre cette vue » : correction
-    instantanée. C'est le mode d'entraînement le plus rapide et le plus fun.
-  - La prudence du profil s'applique (« 🤔 Pas sûr... » sous le seuil).
-  - Ce qu'elle voit alimente l'orchestrateur (« Penser ensemble »).
-  - La caméra s'arrête automatiquement quand tu quittes l'app.
-- **💞 Croisement d'enfants** (onglet Enfant) : choisis deux enfants de la
-  fratrie, donne un prénom, et un bébé naît avec la moyenne de leurs gènes
-  + une mutation aléatoire, héritant du savoir des deux. Crée des lignées !
-- Nouvelles sections tutoriel pour les deux.
-- Permission CAMERA ajoutée (demandée seulement au premier démarrage).
+- **📊 Carte « Bilan & Examen »** (onglet Entraîner, violette) :
+  - L'app mémorise désormais un échantillon de tout ce que les IA images et
+    sons apprennent (jusqu'à 400 chacune, rotation automatique).
+  - **🏆 Passer l'examen** : chaque IA repasse sur ses échantillons → score
+    global + note par étiquette, avec ⚠ sur celles à retravailler (< 60%).
+  - Parfait pour mesurer la progression après chaque session d'entraînement.
+- **🎤 L'enfant écoute** : bouton « Parler au micro » — reconnaissance vocale
+  française, ta phrase lui est transmise comme un message.
+- **🔊 L'enfant parle** : il répond à voix haute (synthèse vocale Android), et
+  sa voix GRANDIT avec lui : très aiguë et lente en nouveau-né, elle devient
+  progressivement grave et fluide jusqu'à l'âge adulte. Interrupteur pour
+  couper le son.
+- Les boutons « Oublier » effacent aussi les échantillons d'examen.
+- Nouvelles sections tutoriel.
 
-# v10 — Scan complet & Sauvegardes  # v9 — IA Enfant  # v8 — Cerveau distant
-# v7 — Internet  # v6 — Profils  # v5 — Formats  # v4 — Scan  # v3 — Design  # v2 — IA
+# v11 — Vision & Croisements  # v10 — Scan complet  # v9 — IA Enfant
+# v8 — Cerveau distant  # v7 — Internet  # v6 — Profils  # v5-v2 — Fondations
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v11.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v12.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v11 vision directe croisements"
+git commit -m "v12 examen voix enfant"
 git push
 ```

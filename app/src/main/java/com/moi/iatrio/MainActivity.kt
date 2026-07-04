@@ -16,6 +16,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.TextureView
@@ -49,6 +52,9 @@ class MainActivity : Activity() {
     private lateinit var liveLabel: EditText
     private var liveCamera: android.hardware.Camera? = null
     private var liveRunning = false
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private lateinit var examOut: TextView
     private lateinit var remoteStatus: TextView
     private lateinit var remoteKeyField: EditText
     private lateinit var remoteAsk: EditText
@@ -168,6 +174,12 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         remote = RemoteBrain(this)
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.FRENCH
+                ttsReady = true
+            }
+        }
         childManager = ChildManager(filesDir)
         childManager.currentName()?.let { child = childManager.get(it) }
         profiles = ProfileManager(filesDir)
@@ -427,6 +439,29 @@ class MainActivity : Activity() {
         cw.addView(webStatus)
         box.addView(cw, lp(16))
 
+        // Bilan & Examen
+        val ce = card(Color.parseColor("#8B5CF6"))
+        ce.addView(sectionTitle("\uD83D\uDCCA  Bilan & Examen", Color.parseColor("#8B5CF6")))
+        ce.addView(TextView(this).apply {
+            text = "L'app mémorise un échantillon de tout ce que tes IA apprennent. L'examen les fait replancher dessus : score global, note par étiquette, et \u26A0 sur ce qu'il faut retravailler."
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        examOut = TextView(this).apply {
+            setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f); setPadding(0, dp(8), 0, 0)
+        }
+        ce.addView(pill("\uD83C\uDFC6 Passer l'examen", Color.parseColor("#8B5CF6"), Color.parseColor("#7C3AED")) {
+            examOut.text = "Examen en cours..."
+            Thread {
+                val rImg = imageBrain.exam()
+                val rAud = audioBrain.exam()
+                runOnUiThread {
+                    examOut.text = "\uD83D\uDDBC IMAGES\n$rImg\n\n\uD83C\uDFB5 SONS\n$rAud\n\n\uD83D\uDCBB CODE : ${codeBrain.size()} motifs en mémoire"
+                }
+            }.start()
+        })
+        ce.addView(examOut)
+        box.addView(ce, lp(16))
+
         // Orchestrateur
         val cf = card(cInk)
         cf.addView(sectionTitle("\uD83E\uDDE0  Réflexion commune", cInk))
@@ -653,6 +688,12 @@ class MainActivity : Activity() {
             "\u2022 Tu peux poser des questions libres au cerveau distant.\n" +
             "\u2022 « Penser ensemble » : il commente ce que tes IA perçoivent et te conseille.\n\n" +
             "VIE PRIVÉE : activé, tes questions partent chez Google. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
+        tutoCard(Color.parseColor("#8B5CF6"), "\uD83D\uDCCA  Le bilan et l'examen",
+            "Comment savoir si tes IA sont bien entraînées ? Fais-les passer l'examen !\n\n" +
+            "\u2022 L'app garde un échantillon de tout ce qui est appris (jusqu'à 400 par IA).\n" +
+            "\u2022 Passer l'examen : chaque IA repasse sur ses échantillons, score global + note par étiquette.\n" +
+            "\u2022 Les étiquettes marquées \u26A0 (moins de 60%) ont besoin de plus d'exemples, ou de plus variés.\n" +
+            "\u2022 Repasse l'examen après chaque grosse session pour mesurer la progression !")
         tutoCard(Color.parseColor("#14B8A6"), "\uD83D\uDC41  La vision en direct",
             "L'IA regarde le monde par ta caméra et devine en continu !\n\n" +
             "\u2022 Démarrer \u2192 pointe un objet \u2192 elle affiche ce qu'elle croit voir.\n" +
@@ -667,6 +708,7 @@ class MainActivity : Activity() {
             "\u2022 « Hériter des parents » : offre-lui d'un coup un morceau du savoir des 3 IA.\n" +
             "\u2022 Tu peux élever toute une fratrie et comparer leurs personnalités !\n" +
             "\u2022 CROISEMENT \uD83D\uDC9E : deux enfants peuvent avoir un bébé qui mélange leurs gènes (moyenne + mutation) et hérite du savoir des deux. Fais des lignées !\n\n" +
+            "LA VOIX \uD83C\uDFA4\uD83D\uDD0A : parle-lui au micro (reconnaissance vocale française) et il répond à voix haute, avec une voix aiguë de bébé qui devient grave en grandissant ! Interrupteur pour couper le son.\n\n" +
             "Astuce : entraîne d'abord bien tes 3 IA (surtout le cerveau code), puis donne naissance — l'enfant naîtra avec un meilleur bagage.")
         tutoCard(cInk, "\uD83E\uDDEC  Profils : comme changer de modèle",
             "Chaque profil = une mémoire totalement séparée + un comportement.\n\n" +
@@ -720,7 +762,9 @@ class MainActivity : Activity() {
                 val t = childInput.text.toString().trim()
                 if (t.isEmpty()) return@pill toast("Écris quelque chose")
                 c.listen(t)
-                childTalkOut.text = "${c.name} : " + c.speak(t)
+                val resp = c.speak(t)
+                childTalkOut.text = "${c.name} : " + resp
+                speakAloud(resp, c)
                 childInput.setText("")
                 refreshChildTab()
             },
@@ -735,6 +779,27 @@ class MainActivity : Activity() {
                 refreshChildTab()
             }
         ), lp(10))
+        cd.addView(pill("\uD83C\uDFA4 Parler au micro", Color.parseColor("#EC4899"), Color.parseColor("#DB2777")) {
+            if (child == null) return@pill toast("Donne d'abord naissance à un enfant !")
+            try {
+                val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Parle à ${child!!.name}...")
+                }
+                startActivityForResult(i, 45)
+            } catch (e: Exception) {
+                toast("Reconnaissance vocale indisponible sur cet appareil")
+            }
+        }, lp(10))
+        cd.addView(Switch(this).apply {
+            text = "\uD83D\uDD0A L'enfant répond à voix haute"
+            setTextColor(cInk)
+            isChecked = getSharedPreferences("iatrio", 0).getBoolean("child_voice", true)
+            setOnCheckedChangeListener { _, checked ->
+                getSharedPreferences("iatrio", 0).edit().putBoolean("child_voice", checked).apply()
+            }
+        }, lp(6))
         cd.addView(childTalkOut)
         box.addView(cd, lp(16))
 
@@ -929,6 +994,30 @@ class MainActivity : Activity() {
     }
 
     // ============================================================
+    // La voix de l'enfant : plus il est jeune, plus elle est aiguë !
+    private fun speakAloud(text: String, c: ChildBrain) {
+        if (!ttsReady) return
+        if (!getSharedPreferences("iatrio", 0).getBoolean("child_voice", true)) return
+        val pitch = when {
+            c.xp < 10 -> 1.9f   // nouveau-né
+            c.xp < 30 -> 1.6f   // bébé
+            c.xp < 80 -> 1.35f  // enfant
+            c.xp < 200 -> 1.1f  // ado
+            else -> 1.0f        // adulte
+        }
+        try {
+            tts?.setPitch(pitch)
+            tts?.setSpeechRate(if (c.xp < 30) 0.85f else 1.0f)
+            tts?.speak(text.take(300), TextToSpeech.QUEUE_FLUSH, null, "child")
+        } catch (e: Exception) { }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { tts?.shutdown() } catch (e: Exception) { }
+    }
+
+    // ============================================================
     private fun record() {
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 42); return
@@ -968,6 +1057,18 @@ class MainActivity : Activity() {
                     audStatus.text = "Appris : ${audioBrain.summary()}"
                     codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
                 })
+            return
+        }
+        if (requestCode == 45 && resultCode == RESULT_OK) {
+            val heard = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            val c = child
+            if (heard != null && c != null) {
+                c.listen(heard)
+                val resp = c.speak(heard)
+                childTalkOut.text = "Toi \uD83C\uDFA4 : $heard\n${c.name} : $resp"
+                speakAloud(resp, c)
+                refreshChildTab()
+            }
             return
         }
         if (requestCode == 1 && resultCode == RESULT_OK && data?.data != null) {

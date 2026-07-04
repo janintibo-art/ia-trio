@@ -14,7 +14,19 @@ import kotlin.math.sqrt
 class ImageBrain(dir: File) {
     private val net = NeuralNet(192, 48)
     private val file = File(dir, "image.net")
+    private val samples = File(dir, "samples_img.txt")
     init { if (file.exists()) net.load(file) }
+
+    private fun remember(x: DoubleArray, label: String) {
+        try {
+            if (samples.exists() && samples.readLines().size > 400)
+                samples.writeText(samples.readLines().takeLast(300).joinToString("\n") + "\n")
+            samples.appendText(label + "|" + x.joinToString(",") + "\n")
+        } catch (e: Exception) { }
+    }
+
+    /** Examen : l'IA repasse sur tous les échantillons mémorisés. */
+    fun exam(): String = examOn(samples, 192) { net.predict(it).first }
 
     private fun features(bmp: Bitmap, mirror: Boolean = false, bright: Double = 1.0): DoubleArray {
         val s = Bitmap.createScaledBitmap(bmp, 8, 8, true)
@@ -31,6 +43,7 @@ class ImageBrain(dir: File) {
     }
 
     fun learn(bmp: Bitmap, label: String) {
+        remember(features(bmp), label)
         net.train(features(bmp), label)
         net.train(features(bmp, mirror = true), label)
         net.train(features(bmp, bright = 1.25), label)
@@ -41,7 +54,7 @@ class ImageBrain(dir: File) {
     fun guess(bmp: Bitmap) = net.predict(features(bmp))
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
-    fun forget() { net.reset(); if (file.exists()) file.delete() }
+    fun forget() { net.reset(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete() }
 }
 
 /**
@@ -51,7 +64,19 @@ class AudioBrain(dir: File) {
     private val bands = 32
     private val net = NeuralNet(bands, 32)
     private val file = File(dir, "audio.net")
+    private val samples = File(dir, "samples_aud.txt")
     init { if (file.exists()) net.load(file) }
+
+    private fun remember(x: DoubleArray, label: String) {
+        try {
+            if (samples.exists() && samples.readLines().size > 400)
+                samples.writeText(samples.readLines().takeLast(300).joinToString("\n") + "\n")
+            samples.appendText(label + "|" + x.joinToString(",") + "\n")
+        } catch (e: Exception) { }
+    }
+
+    /** Examen : l'IA repasse sur tous les échantillons mémorisés. */
+    fun exam(): String = examOn(samples, bands) { net.predict(it).first }
 
     private fun features(pcm: ShortArray): DoubleArray {
         val n = 512
@@ -78,11 +103,38 @@ class AudioBrain(dir: File) {
         return x
     }
 
-    fun learn(pcm: ShortArray, label: String) { net.train(features(pcm), label); net.save(file) }
+    fun learn(pcm: ShortArray, label: String) {
+        val x = features(pcm)
+        remember(x, label)
+        net.train(x, label)
+        net.save(file)
+    }
     fun guess(pcm: ShortArray) = net.predict(features(pcm))
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
-    fun forget() { net.reset(); if (file.exists()) file.delete() }
+    fun forget() { net.reset(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete() }
+}
+
+/** Fonction d'examen commune : relit les échantillons et calcule les scores. */
+internal fun examOn(samples: File, nFeatures: Int, predict: (DoubleArray) -> String): String {
+    if (!samples.exists()) return "Aucun échantillon (apprends d'abord quelque chose)."
+    var ok = 0; var tot = 0
+    val perOk = HashMap<String, Int>(); val perTot = HashMap<String, Int>()
+    for (line in samples.readLines()) {
+        val i = line.indexOf('|'); if (i <= 0) continue
+        val label = line.substring(0, i)
+        val x = line.substring(i + 1).split(",").mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+        if (x.size != nFeatures) continue
+        tot++; perTot[label] = (perTot[label] ?: 0) + 1
+        if (predict(x) == label) { ok++; perOk[label] = (perOk[label] ?: 0) + 1 }
+    }
+    if (tot == 0) return "Aucun échantillon valide."
+    val per = perTot.keys.sorted().joinToString("\n") { l ->
+        val o = perOk[l] ?: 0; val t = perTot[l]!!
+        val star = if (o * 100 / t < 60) "  \u26A0 à entraîner !" else ""
+        "  \u2022 $l : $o/$t (${o * 100 / t}%)$star"
+    }
+    return "Score global : $ok/$tot (${ok * 100 / tot}%)\n$per"
 }
 
 /**

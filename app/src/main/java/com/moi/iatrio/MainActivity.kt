@@ -61,6 +61,9 @@ class MainActivity : Activity() {
     private lateinit var remoteSwitch: Switch
     private lateinit var providerSpinner: Spinner
     private var tfVision: TFVision? = null
+    private lateinit var imgConf: ProgressBar
+    private lateinit var audConf: ProgressBar
+    private lateinit var liveConf: ProgressBar
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -283,6 +286,28 @@ class MainActivity : Activity() {
         else "$verb « ${r.first} » ($pct%)"
     }
 
+    /** Barre de confiance : rouge si doute, orange si moyen, verte si sûre. */
+    private fun confBar(): ProgressBar =
+        ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0 }
+
+    private fun setConf(bar: ProgressBar, pct: Int) {
+        bar.progress = pct
+        val color = when {
+            pct < profile.caution -> Color.parseColor("#EF4444")
+            pct < 70 -> Color.parseColor("#F59E0B")
+            else -> Color.parseColor("#10B981")
+        }
+        bar.progressTintList = android.content.res.ColorStateList.valueOf(color)
+    }
+
+    /** Mini-graphique en caractères : ▁▂▃▄▅▆▇█ */
+    private fun sparkline(values: List<Int>): String {
+        val blocks = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
+        return values.joinToString("") { v ->
+            blocks[(v.coerceIn(0, 100) * (blocks.length - 1) / 100)].toString()
+        }
+    }
+
     // ============================================================
     // ONGLET 1 : ENTRAÎNER
     private fun buildTrainTab(box: LinearLayout) {
@@ -306,10 +331,13 @@ class MainActivity : Activity() {
                 val r = imageBrain.guess(b); orchestrator.lastImage = r
                 val pre = imageBrain.preKnowledge(b)?.let { "\nBase MobileNet : $it" } ?: ""
                 imgStatus.text = verdict(r, "Je pense :") + pre
+                setConf(imgConf, (r.second * 100).toInt())
             }
         ), lp(10))
         ci.addView(ghost("\uD83D\uDDD1 Oublier les images") { imageBrain.forget(); imgStatus.text = "Mémoire images effacée." }, lp(10))
         ci.addView(imgStatus)
+        imgConf = confBar()
+        ci.addView(imgConf, lp(6))
         box.addView(ci, lp(0))
 
         // Vision en direct (caméra)
@@ -337,6 +365,8 @@ class MainActivity : Activity() {
             imgStatus.text = "Appris : ${imageBrain.summary()}"
             liveOut.text = "\u2714 Vue apprise comme « $l » !"
         }, lp(10))
+        liveConf = confBar()
+        cv.addView(liveConf, lp(6))
         cv.addView(liveOut)
         box.addView(cv, lp(16))
 
@@ -357,10 +387,13 @@ class MainActivity : Activity() {
                 val a = currentAudio ?: return@pill toast("Enregistre un son")
                 val r = audioBrain.guess(a); orchestrator.lastAudio = r
                 audStatus.text = verdict(r, "J'entends :")
+                setConf(audConf, (r.second * 100).toInt())
             }
         ), lp(10))
         cs.addView(ghost("\uD83D\uDDD1 Oublier les sons") { audioBrain.forget(); audStatus.text = "Mémoire sons effacée." }, lp(10))
         cs.addView(audStatus)
+        audConf = confBar()
+        cs.addView(audConf, lp(6))
         box.addView(cs, lp(16))
 
         // Code
@@ -458,8 +491,26 @@ class MainActivity : Activity() {
             Thread {
                 val rImg = imageBrain.exam()
                 val rAud = audioBrain.exam()
+                // Extraire les scores globaux et les archiver
+                val rx = Regex("\\((\\d+)%\\)")
+                val pImg = rx.find(rImg)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+                val pAud = rx.find(rAud)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+                val histFile = java.io.File(profiles.dir(profile.name), "history.txt")
+                if (pImg >= 0 || pAud >= 0) {
+                    val date = java.text.SimpleDateFormat("dd/MM HH:mm", Locale.FRANCE).format(java.util.Date())
+                    try { histFile.appendText("$date|$pImg|$pAud\n") } catch (e: Exception) { }
+                }
+                // Historique : 12 derniers examens
+                val hist = try {
+                    if (histFile.exists()) histFile.readLines().takeLast(12) else emptyList()
+                } catch (e: Exception) { emptyList() }
+                val imgSeries = hist.mapNotNull { it.split("|").getOrNull(1)?.toIntOrNull() }.filter { it >= 0 }
+                val audSeries = hist.mapNotNull { it.split("|").getOrNull(2)?.toIntOrNull() }.filter { it >= 0 }
+                val prog = StringBuilder()
+                if (imgSeries.size >= 2) prog.append("\n\n\uD83D\uDCC8 PROGRESSION (${imgSeries.size} examens)\nImages : ${sparkline(imgSeries)} (dernier ${imgSeries.last()}%)")
+                if (audSeries.size >= 2) prog.append("\nSons : ${sparkline(audSeries)} (dernier ${audSeries.last()}%)")
                 runOnUiThread {
-                    examOut.text = "\uD83D\uDDBC IMAGES\n$rImg\n\n\uD83C\uDFB5 SONS\n$rAud\n\n\uD83D\uDCBB CODE : ${codeBrain.size()} motifs en mémoire"
+                    examOut.text = "\uD83D\uDDBC IMAGES\n$rImg\n\n\uD83C\uDFB5 SONS\n$rAud\n\n\uD83D\uDCBB CODE : ${codeBrain.size()} motifs en mémoire" + prog.toString()
                 }
             }.start()
         })
@@ -716,7 +767,8 @@ class MainActivity : Activity() {
             "\u2022 L'app garde un échantillon de tout ce qui est appris (jusqu'à 400 par IA).\n" +
             "\u2022 Passer l'examen : chaque IA repasse sur ses échantillons, score global + note par étiquette.\n" +
             "\u2022 Les étiquettes marquées \u26A0 (moins de 60%) ont besoin de plus d'exemples, ou de plus variés.\n" +
-            "\u2022 Repasse l'examen après chaque grosse session pour mesurer la progression !")
+            "\u2022 Repasse l'examen après chaque grosse session : un mini-graphique \uD83D\uDCC8 de tes 12 derniers scores apparaît, tu VOIS tes IA progresser.\n" +
+            "\u2022 Les barres colorées sous chaque IA montrent la confiance en direct : rouge = doute, orange = moyen, vert = sûre.")
         tutoCard(Color.parseColor("#14B8A6"), "\uD83D\uDC41  La vision en direct",
             "L'IA regarde le monde par ta caméra et devine en continu !\n\n" +
             "\u2022 Démarrer \u2192 pointe un objet \u2192 elle affiche ce qu'elle croit voir.\n" +
@@ -939,6 +991,7 @@ class MainActivity : Activity() {
                 val r = imageBrain.guess(bmp)
                 orchestrator.lastImage = r
                 liveOut.text = verdict(r, "\uD83D\uDC41 Je vois :")
+                setConf(liveConf, (r.second * 100).toInt())
             }
         } catch (e: Exception) { }
         liveTexture.postDelayed({ tickLive() }, 900)

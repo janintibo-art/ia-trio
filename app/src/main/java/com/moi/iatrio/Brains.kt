@@ -40,6 +40,7 @@ class ImageBrain(dir: File) {
 
     fun guess(bmp: Bitmap) = net.predict(features(bmp))
     fun summary() = net.summary()
+    fun labels(): List<String> = net.labels.toList()
     fun forget() { net.reset(); if (file.exists()) file.delete() }
 }
 
@@ -80,6 +81,7 @@ class AudioBrain(dir: File) {
     fun learn(pcm: ShortArray, label: String) { net.train(features(pcm), label); net.save(file) }
     fun guess(pcm: ShortArray) = net.predict(features(pcm))
     fun summary() = net.summary()
+    fun labels(): List<String> = net.labels.toList()
     fun forget() { net.reset(); if (file.exists()) file.delete() }
 }
 
@@ -131,6 +133,8 @@ class CodeBrain(dir: File) {
     }
 
     fun size() = model.size
+    fun corpusExcerpt(maxChars: Int = 3000): String =
+        if (corpus.exists()) corpus.readText().take(maxChars) else ""
     fun forget() { model.clear(); if (corpus.exists()) corpus.delete() }
 }
 

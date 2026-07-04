@@ -29,6 +29,13 @@ class MainActivity : Activity() {
     private lateinit var scanner: ScanTrainer
     private lateinit var web: WebLearner
     private lateinit var remote: RemoteBrain
+    private lateinit var childManager: ChildManager
+    private var child: ChildBrain? = null
+    private lateinit var childStatus: TextView
+    private lateinit var childTalkOut: TextView
+    private lateinit var childInput: EditText
+    private lateinit var childNameField: EditText
+    private lateinit var childListBox: LinearLayout
     private lateinit var remoteStatus: TextView
     private lateinit var remoteKeyField: EditText
     private lateinit var remoteAsk: EditText
@@ -53,6 +60,7 @@ class MainActivity : Activity() {
     // Onglets
     private lateinit var tabTrain: LinearLayout
     private lateinit var tabProfiles: LinearLayout
+    private lateinit var tabChild: LinearLayout
     private lateinit var tabTuto: LinearLayout
     private lateinit var tabButtons: List<Button>
 
@@ -147,6 +155,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         remote = RemoteBrain(this)
+        childManager = ChildManager(filesDir)
+        childManager.currentName()?.let { child = childManager.get(it) }
         profiles = ProfileManager(filesDir)
         profiles.migrateLegacy()
         loadProfile(profiles.currentName(), refreshUi = false)
@@ -168,7 +178,7 @@ class MainActivity : Activity() {
         })
 
         // Barre d'onglets
-        val tabNames = listOf("Entraîner", "Profils", "Tutoriel")
+        val tabNames = listOf("Entraîner", "Profils", "\uD83D\uDC76 Enfant", "Tuto")
         tabButtons = tabNames.mapIndexed { i, n ->
             Button(this).apply {
                 text = n; isAllCaps = false; stateListAnimator = null
@@ -181,12 +191,15 @@ class MainActivity : Activity() {
         // Conteneurs des onglets
         tabTrain = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabProfiles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tabChild = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabTuto = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         buildTrainTab(tabTrain)
         buildProfilesTab(tabProfiles)
+        buildChildTab(tabChild)
         buildTutoTab(tabTuto)
         screen.addView(tabTrain, lp(14))
         screen.addView(tabProfiles, lp(14))
+        screen.addView(tabChild, lp(14))
         screen.addView(tabTuto, lp(14))
 
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(screen) })
@@ -197,7 +210,8 @@ class MainActivity : Activity() {
     private fun showTab(i: Int) {
         tabTrain.visibility = if (i == 0) View.VISIBLE else View.GONE
         tabProfiles.visibility = if (i == 1) View.VISIBLE else View.GONE
-        tabTuto.visibility = if (i == 2) View.VISIBLE else View.GONE
+        tabChild.visibility = if (i == 2) View.VISIBLE else View.GONE
+        tabTuto.visibility = if (i == 3) View.VISIBLE else View.GONE
         tabButtons.forEachIndexed { j, b ->
             b.setTextColor(if (i == j) Color.WHITE else cInk)
             b.typeface = if (i == j) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -207,6 +221,7 @@ class MainActivity : Activity() {
             }
         }
         if (i == 1) refreshProfilesTab()
+        if (i == 2) refreshChildTab()
     }
 
     // ============================================================
@@ -589,6 +604,14 @@ class MainActivity : Activity() {
             "\u2022 Tu peux poser des questions libres au cerveau distant.\n" +
             "\u2022 « Penser ensemble » : il commente ce que tes IA perçoivent et te conseille.\n\n" +
             "VIE PRIVÉE : activé, tes questions partent chez Google. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
+        tutoCard(Color.parseColor("#EC4899"), "\uD83D\uDC76  L'IA Enfant",
+            "Ta création la plus personnelle : une IA qui NAÎT de tes 3 IA.\n\n" +
+            "\u2022 À la naissance, elle hérite du savoir des parents du profil actif + des gènes ALÉATOIRES : deux enfants ne seront jamais identiques.\n" +
+            "\u2022 Nouveau-né, elle gazouille (« areuh gaga ! »). Parle-lui souvent : chaque message lui donne de l'expérience.\n" +
+            "\u2022 Étapes : nouveau-né \uD83C\uDF7C \u2192 bébé \uD83D\uDC76 \u2192 enfant \uD83E\uDDD2 \u2192 ado \uD83C\uDFA7 (attention au caractère !) \u2192 adulte \uD83E\uDDE0.\n" +
+            "\u2022 « Hériter des parents » : offre-lui d'un coup un morceau du savoir des 3 IA.\n" +
+            "\u2022 Tu peux élever toute une fratrie et comparer leurs personnalités !\n\n" +
+            "Astuce : entraîne d'abord bien tes 3 IA (surtout le cerveau code), puis donne naissance — l'enfant naîtra avec un meilleur bagage.")
         tutoCard(cInk, "\uD83E\uDDEC  Profils : comme changer de modèle",
             "Chaque profil = une mémoire totalement séparée + un comportement.\n\n" +
             "Exemples d'usage :\n" +
@@ -600,6 +623,103 @@ class MainActivity : Activity() {
             "\u2696\uFE0F Équilibré : le réglage par défaut.\n" +
             "\uD83C\uDFA8 Créatif : complétions audacieuses, répond toujours.\n" +
             "\uD83D\uDEE1 Prudent : n'affirme que s'il est très sûr.")
+    }
+
+    // ============================================================
+    // ONGLET 3 : L'IA ENFANT 👶
+    private fun buildChildTab(box: LinearLayout) {
+        // Naissance
+        val cn = card(Color.parseColor("#EC4899"))
+        cn.addView(sectionTitle("\uD83C\uDF7C  Donner naissance", Color.parseColor("#EC4899")))
+        cn.addView(TextView(this).apply {
+            text = "Une nouvelle IA naît des 3 IA du profil actif : elle hérite d'un extrait de leur mémoire, de leur vocabulaire, et reçoit des GÈNES aléatoires (curiosité, calme, créativité, mot préféré). Chaque enfant est unique. Elle grandit en discutant avec toi !"
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        childNameField = field("Prénom de l'enfant (ex: pixel)")
+        cn.addView(childNameField)
+        cn.addView(pill("\uD83D\uDC76 Donner naissance", Color.parseColor("#EC4899"), Color.parseColor("#DB2777")) {
+            val n = childNameField.text.toString().trim()
+            if (n.isEmpty()) return@pill toast("Donne-lui un prénom !")
+            val labels = imageBrain.labels() + audioBrain.labels()
+            child = childManager.birth(n, codeBrain.corpusExcerpt(), labels, profile.creativity)
+            childNameField.setText("")
+            refreshChildTab()
+            childTalkOut.text = "\uD83C\uDF89 ${child!!.name} est né(e) ! " + child!!.speak("bonjour")
+        }, lp(10))
+        box.addView(cn, lp(0))
+
+        // Discussion
+        val cd = card(Color.parseColor("#EC4899"))
+        cd.addView(sectionTitle("\uD83D\uDCAC  Parler avec l'enfant", Color.parseColor("#EC4899")))
+        childStatus = status()
+        childInput = field("Dis-lui quelque chose...")
+        childTalkOut = TextView(this).apply {
+            setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f); setPadding(0, dp(8), 0, 0)
+        }
+        cd.addView(childStatus)
+        cd.addView(childInput, lp(10))
+        cd.addView(rowEqual(
+            pill("Parler", Color.parseColor("#EC4899"), Color.parseColor("#DB2777")) {
+                val c = child ?: return@pill toast("Donne d'abord naissance à un enfant !")
+                val t = childInput.text.toString().trim()
+                if (t.isEmpty()) return@pill toast("Écris quelque chose")
+                c.listen(t)
+                childTalkOut.text = "${c.name} : " + c.speak(t)
+                childInput.setText("")
+                refreshChildTab()
+            },
+            pill("\uD83C\uDF81 Hériter des parents", Color.parseColor("#EC4899"), Color.parseColor("#DB2777")) {
+                val c = child ?: return@pill toast("Donne d'abord naissance à un enfant !")
+                val excerpt = codeBrain.corpusExcerpt(2000)
+                val labels = imageBrain.labels() + audioBrain.labels()
+                if (excerpt.isBlank() && labels.isEmpty()) return@pill toast("Les parents n'ont encore rien à transmettre")
+                if (excerpt.isNotBlank()) c.listen(excerpt)
+                if (labels.isNotEmpty()) c.listen("Les parents connaissent " + labels.joinToString(", ") + ". ")
+                childTalkOut.text = "${c.name} a reçu un cadeau de savoir des parents ! \uD83C\uDF81"
+                refreshChildTab()
+            }
+        ), lp(10))
+        cd.addView(childTalkOut)
+        box.addView(cd, lp(16))
+
+        // Fratrie
+        val cf2 = card(Color.parseColor("#EC4899"))
+        cf2.addView(sectionTitle("\uD83D\uDC6A  La fratrie", Color.parseColor("#EC4899")))
+        childListBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        cf2.addView(childListBox)
+        box.addView(cf2, lp(16))
+    }
+
+    private fun refreshChildTab() {
+        if (!::childStatus.isInitialized) return
+        childStatus.text = child?.describe() ?: "Aucun enfant pour le moment. Donne naissance ci-dessus !"
+        childListBox.removeAllViews()
+        val all = childManager.list()
+        if (all.isEmpty()) {
+            childListBox.addView(body("(personne pour l'instant)"))
+            return
+        }
+        for (name in all) {
+            val isCurrent = name == child?.name
+            val c = childManager.get(name)
+            val label = (if (isCurrent) "\u2705 " else "") + "$name — ${c.stage()}"
+            val btn = pill(label, if (isCurrent) Color.parseColor("#EC4899") else Color.parseColor("#94A3B8"),
+                if (isCurrent) Color.parseColor("#DB2777") else Color.parseColor("#64748B")) {
+                if (!isCurrent) {
+                    child = childManager.get(name)
+                    childManager.setCurrent(name)
+                    refreshChildTab()
+                    toast("$name te fait coucou \uD83D\uDC4B")
+                }
+            }
+            val row = if (isCurrent) rowEqual(btn)
+            else rowEqual(btn, ghost("\uD83D\uDDD1") {
+                childManager.delete(name)
+                if (child?.name == name) child = null
+                refreshChildTab()
+            })
+            childListBox.addView(row, lp(8))
+        }
     }
 
     // ============================================================

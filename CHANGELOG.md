@@ -1,28 +1,30 @@
-# Nouveautés v5 — Formats élargis
+# Nouveautés v6 — Onglets, Profils & Tutoriel
 
-- **Audio compressé** : MP3, FLAC, OGG, M4A, AAC, Opus décodés avec le décodeur
-  natif d'Android (MediaCodec). Ta bibliothèque musicale entière devient une base
-  d'entraînement ! (2 premières secondes de chaque morceau, mono, garde-fou de 8 s
-  par fichier pour ne jamais bloquer le scan)
-- **Fichiers 3D** : OBJ et STL (ASCII et binaire). Le modèle est projeté en 3 vues
-  — dessus, face, côté — codées dans les canaux Rouge/Vert/Bleu d'une mini-image,
-  que l'IA images apprend avec le nom du dossier comme étiquette. Elle peut donc
-  reconnaître des FORMES 3D.
-- **Formats code/texte élargis** (~33) : ajout de ts, jsx, tsx, php, rb, go, rs,
-  swift, sql, yml, yaml, csv, ini, log, gradle, properties, bat, h, hpp...
-- **Formats image élargis** : ajout de bmp et gif.
-- Le compteur de scan affiche maintenant les modèles 3D séparément.
+- **3 onglets** en haut de l'app : Entraîner / Profils / Tutoriel.
+- **Système de profils** : chaque profil a sa propre mémoire complète (images,
+  sons, code séparés). Crée un profil « famille », un profil « musique », un
+  profil « dev »... et bascule de l'un à l'autre comme on change de modèle d'IA.
+  Tes anciennes mémoires sont automatiquement migrées dans le profil « standard ».
+- **Comportements sauvegardés** par profil, avec 4 préréglages :
+  🎯 Précis (complétions sages, avoue vite son doute), ⚖️ Équilibré,
+  🎨 Créatif (complétions audacieuses), 🛡️ Prudent (n'affirme que s'il est sûr).
+  + 2 curseurs de réglage fin : créativité et prudence.
+- **La prudence agit sur "Deviner"** : sous le seuil de confiance, l'IA répond
+  « 🤔 Pas sûr... peut-être ... » au lieu d'affirmer.
+- **La créativité agit sur "Compléter"** : basse = suite la plus probable,
+  haute = tirage audacieux.
+- **Tutoriel intégré** : les 3 règles d'or, conseils spécifiques images / sons /
+  code / entraînement massif, et guide des profils.
 
-# v4 — Entraînement massif (dossier téléphone/carte SD)
-# v3 — Graphisme (icône, logo, interface)
-# v2 — Intelligence (RGB, FFT, oublier, compteurs)
+# v5 — Formats élargis (mp3 flac ogg, 3D obj/stl, ~33 formats code)
+# v4 — Entraînement massif  # v3 — Graphisme  # v2 — Intelligence
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v5.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v6.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v5 mp3 flac ogg 3d formats"
+git commit -m "v6 onglets profils tutoriel"
 git push
 ```

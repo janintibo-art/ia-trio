@@ -103,17 +103,27 @@ class CodeBrain(dir: File) {
 
     fun learn(text: String) { learnInternal(text); corpus.appendText(text + "\n") }
 
-    fun complete(prompt: String, length: Int = 200): String {
+    /**
+     * creativity 0..100 : à 0 on choisit toujours la suite la plus probable
+     * (texte sage et répétitif), à 100 on tire au sort selon les probabilités
+     * (texte varié et audacieux).
+     */
+    fun complete(prompt: String, length: Int = 200, creativity: Int = 50): String {
         if (model.isEmpty()) return "(rien appris : colle-moi du code d'abord)"
         var ctx = if (prompt.length >= order) prompt.takeLast(order)
                   else model.keys.firstOrNull() ?: return ""
         val sb = StringBuilder(prompt)
         repeat(length) {
             val m = model[ctx] ?: return sb.toString()
-            val total = m.values.sum()
-            var r = (Math.random() * total).toInt()
-            var pick = m.keys.first()
-            for ((c, nn) in m) { r -= nn; if (r < 0) { pick = c; break } }
+            val pick: Char = if (Math.random() * 100 >= creativity) {
+                m.maxByOrNull { it.value }!!.key          // choix le plus probable
+            } else {
+                val total = m.values.sum()                 // tirage pondéré
+                var r = (Math.random() * total).toInt()
+                var p = m.keys.first()
+                for ((c, nn) in m) { r -= nn; if (r < 0) { p = c; break } }
+                p
+            }
             sb.append(pick)
             ctx = sb.takeLast(order).toString()
         }

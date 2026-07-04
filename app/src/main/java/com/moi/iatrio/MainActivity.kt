@@ -243,7 +243,7 @@ class MainActivity : Activity() {
         val cm = card(Color.parseColor("#10B981"))
         cm.addView(sectionTitle("\uD83D\uDCDA  Entraînement massif", Color.parseColor("#10B981")))
         cm.addView(TextView(this).apply {
-            text = "Choisis un dossier (téléphone ou carte SD) : les images seront apprises avec le nom de leur dossier comme étiquette, les textes nourrissent l'IA code, les .wav l'IA sons. 100% local."
+            text = "Choisis un dossier (téléphone ou carte SD) : images ET modèles 3D (obj/stl) apprennent avec le nom du dossier comme étiquette, musiques (mp3, flac, ogg, wav...) nourrissent l'IA sons, textes/code l'IA code. 100% local."
             setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
         })
         scanStatus = status().also { it.text = "Prêt." }

@@ -76,6 +76,7 @@ class MainActivity : Activity() {
     private var punkTicks = 0
     private var punkPause = 0
     private var lastRemoteThought = 0L
+    private var punkShowingFace = true
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -1148,8 +1149,9 @@ class MainActivity : Activity() {
             }
         }
         punkImg = ImageView(this).apply {
-            setImageResource(R.drawable.punk)
-            layoutParams = LinearLayout.LayoutParams(dp(64), dp(96))
+            setImageResource(R.drawable.punk_face)
+            adjustViewBounds = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(120))
             setOnClickListener { punkThought() }
         }
         punkBox = LinearLayout(this).apply {
@@ -1191,9 +1193,15 @@ class MainActivity : Activity() {
                 if (Math.random() < 0.005) punkDir = -punkDir
             }
             punkBox.translationX = punkX
-            punkImg.scaleX = punkDir.toFloat()
+            // profil quand il marche, face vers nous quand il s'arrête pour penser
+            val paused = punkPause > 0
+            if (paused != punkShowingFace) {
+                punkImg.setImageResource(if (paused) R.drawable.punk_face else R.drawable.punk)
+                punkShowingFace = paused
+            }
+            punkImg.scaleX = if (paused) 1f else punkDir.toFloat()
             // petit rebond de marche
-            punkImg.translationY = if (punkPause > 0) 0f else (if (punkTicks % 8 < 4) 0f else -dp(3).toFloat())
+            punkImg.translationY = if (paused) 0f else (if (punkTicks % 8 < 4) 0f else -dp(3).toFloat())
         }
         punkTicks++
         if (punkTicks % 90 == 0) punkThought()
@@ -1239,6 +1247,7 @@ class MainActivity : Activity() {
     private fun showPunkThought(text: String, pitch: Float) {
         val t = text.take(120).replace("\n", " ")
         punkBubble.text = t
+        punkPause = maxOf(punkPause, 30)   // il s'arrête et nous regarde pour parler
         if (ttsReady && getSharedPreferences("iatrio", 0).getBoolean("punk_voice", false)) {
             try {
                 tts?.setPitch(pitch)

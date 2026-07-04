@@ -1,33 +1,26 @@
-# Nouveautés v15 — Le Punk 🤘
+# Nouveautés v16 — Le VRAI Punk 🤘
 
-Inspiré du Tamagauchiste : un punk se balade sur l'écran et raconte ce qui
-lui passe par la tête !
+Ton punk 3D du Tamagauchiste (modèle GLB Meshy AI) a été converti en sprites
+2D par rendu logiciel — texture d'origine, éclairage, transparence — et intégré
+dans l'app :
 
-- **Nouvel onglet 🤘** avec une arène nocturne où le punk marche, fait
-  demi-tour aux bords, s'arrête parfois pour rêver, avec une petite animation
-  de marche et un retournement quand il change de direction.
-- **Choisis le cerveau qui l'habite** (liste déroulante) :
-  - 💻 le cerveau code du profil actif — ses pensées viennent de tout ce que
-    tu lui as appris (code, Wikipédia, scans...)
-  - 👶 n'importe quel enfant de la fratrie — le punk gazouille si c'est un
-    bébé, et parle avec SA voix !
-  - ☁️ le cerveau distant (s'il est activé) — le punk devient philosophe
-    (1 pensée distante max toutes les 20 s pour économiser ton quota)
-- **Touche le punk** pour le faire réagir immédiatement.
-- **Interrupteur 🔊** : il dit ses pensées à voix haute (voix grave de punk,
-  ou la voix de l'enfant choisi).
-- Le punk actuel est un pixel-art temporaire : envoie l'image de TON punk du
-  Tamagauchiste et il sera intégré à l'identique (ou remplace toi-même
-  app/src/main/res/drawable/punk.png).
+- **Deux poses** rendues depuis ton modèle 3D :
+  - vue de PROFIL quand il marche (retournée selon sa direction)
+  - vue de FACE quand il s'arrête : dès qu'une pensée lui vient, il se tourne
+    vers toi pour te parler, comme un vrai personnage de jeu.
+- Proportions naturelles respectées (fini le pixel-art temporaire).
+- S'il marche "à reculons" sur ton téléphone (selon l'orientation du modèle),
+  dis-le : une ligne à inverser et c'est réglé.
 
-# v14 — Polish  # v13 — TensorFlow & Multi-API  # v12-v2 — Fondations
+# v15 — Le Punk  # v14 — Polish  # v13 — TensorFlow & Multi-API
+# v12-v2 — Fondations
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v15.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v16.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v15 le punk"
+git commit -m "v16 vrai punk 3d"
 git push
 ```

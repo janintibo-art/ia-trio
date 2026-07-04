@@ -23,7 +23,7 @@ class WebLearner(
     private val maxTextChars = 20_000     // texte appris par page
     private val maxImagesPerPage = 8
 
-    private fun httpGet(rawUrl: String): Pair<String, ByteArray>? {
+    internal fun httpGet(rawUrl: String): Pair<String, ByteArray>? {
         var url = rawUrl.trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://$url"
         var conn: HttpURLConnection? = null
@@ -68,7 +68,7 @@ class WebLearner(
     }
 
     /** Retire les balises HTML et garde le texte lisible. */
-    private fun htmlToText(html: String): String {
+    internal fun htmlToText(html: String): String {
         var t = html
         // supprimer scripts et styles
         t = t.replace(Regex("(?is)<script.*?</script>"), " ")
@@ -141,7 +141,7 @@ class WebLearner(
         }.start()
     }
 
-    private fun learnImageBytes(bytes: ByteArray, label: String): Boolean = try {
+    internal fun learnImageBytes(bytes: ByteArray, label: String): Boolean = try {
         val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
         if (bmp != null && bmp.width > 8 && bmp.height > 8) {

@@ -36,6 +36,11 @@ class MainActivity : Activity() {
     private lateinit var orchestrator: Orchestrator
     private lateinit var scanner: ScanTrainer
     private lateinit var web: WebLearner
+    private lateinit var explorer: Explorer
+    private lateinit var expTopic: EditText
+    private lateinit var expLog: TextView
+    private lateinit var expPages: Spinner
+    private lateinit var expImages: Switch
     private lateinit var remote: RemoteBrain
     private lateinit var childManager: ChildManager
     private var child: ChildBrain? = null
@@ -292,6 +297,7 @@ class MainActivity : Activity() {
         orchestrator = Orchestrator(imageBrain, audioBrain, codeBrain)
         scanner = ScanTrainer(this, imageBrain, audioBrain, codeBrain)
         web = WebLearner(this, imageBrain, codeBrain)
+        explorer = Explorer(this, web, imageBrain, audioBrain, codeBrain)
         if (refreshUi) { refreshAllStatuses(); refreshProfilesTab(); toast("Profil « $name » activé") }
     }
 
@@ -500,6 +506,48 @@ class MainActivity : Activity() {
         }, lp(10))
         cw.addView(webStatus)
         box.addView(cw, lp(16))
+
+        // Exploration autonome
+        val cx = card(Color.parseColor("#6366F1"))
+        cx.addView(sectionTitle("\uD83E\uDDED  Exploration autonome", Color.parseColor("#6366F1")))
+        cx.addView(TextView(this).apply {
+            text = "Lâche l'IA sur le web : elle lit, choisit elle-même les liens qui l'intriguent, et apprend de page en page. Sujet simple = Wikipédia, URL complète = ce site-là, VIDE = elle suit sa pure curiosité !"
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        expTopic = field("Sujet, URL... ou rien du tout")
+        cx.addView(expTopic)
+        expPages = Spinner(this)
+        expPages.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            listOf("5 pages", "10 pages", "20 pages", "30 pages"))
+        expPages.setSelection(1)
+        cx.addView(expPages, lp(8))
+        expImages = Switch(this).apply {
+            text = "\uD83D\uDDBC Apprendre aussi les images des pages"
+            setTextColor(cInk)
+        }
+        cx.addView(expImages, lp(6))
+        expLog = TextView(this).apply {
+            setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            typeface = Typeface.MONOSPACE
+            background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(cField) }
+        }
+        cx.addView(rowEqual(
+            pill("\uD83E\uDDED Explorer", Color.parseColor("#6366F1"), Color.parseColor("#4F46E5")) {
+                val pages = listOf(5, 10, 20, 30)[expPages.selectedItemPosition.coerceIn(0, 3)]
+                expLog.text = "\uD83E\uDDED Départ de l'exploration..."
+                explorer.explore(expTopic.text.toString(), pages, expImages.isChecked,
+                    onLog = { expLog.text = it },
+                    onDone = {
+                        expLog.text = "${expLog.text}\n$it"
+                        codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
+                        imgStatus.text = "Appris : ${imageBrain.summary()}"
+                    })
+            },
+            ghost("\u23F9 Stop") { explorer.cancel = true }
+        ), lp(10))
+        cx.addView(expLog, lp(10))
+        box.addView(cx, lp(16))
 
         // Bilan & Examen
         val ce = card(Color.parseColor("#8B5CF6"))
@@ -771,6 +819,15 @@ class MainActivity : Activity() {
             "4. Onglet Entraîner → Choisir un dossier → sélectionne Entrainement/.\n\n" +
             "Le nom de chaque sous-dossier devient l'étiquette. Tu peux relancer plusieurs scans, les IA cumulent tout.\n\n" +
             "TOUT SCANNER : le bouton « TOUT scanner » parcourt l'intégralité du téléphone ET de la carte SD. Android demandera « Accès à tous les fichiers » : active-le pour IA Trio puis relance. Parfait pour un gros bagage général ; des dossiers bien rangés restent plus précis.")
+        tutoCard(Color.parseColor("#6366F1"), "\uD83E\uDDED  L'exploration autonome",
+            "Le mode le plus libre : l'IA vagabonde seule sur le web.\n\n" +
+            "\u2022 SUJET (« volcans ») : elle part de l'article Wikipédia et suit les liens qui l'intriguent — un mélange de familier (mots qu'elle connaît) et de pure découverte.\n" +
+            "\u2022 URL complète : elle explore ce site-là, de lien en lien (même domaine).\n" +
+            "\u2022 RIEN : la curiosité pure ! Elle pioche dans ses propres étiquettes, ou part d'une page Wikipédia au hasard si elle ne connaît rien.\n" +
+            "\u2022 Le journal de bord montre ses lectures et ses coups de cœur en direct.\n" +
+            "\u2022 Active « Apprendre aussi les images » pour qu'elle étiquette les photos des pages avec le titre de l'article.\n" +
+            "\u2022 Garde-fous : nombre de pages limité, Stop à tout moment, pause polie entre les pages. Tout reste 100% local.\n\n" +
+            "Astuce : lance une exploration « vide » après un gros scan de photos — elle ira se documenter sur ce qu'elle a vu !")
         tutoCard(Color.parseColor("#0EA5E9"), "\uD83C\uDF10  Bien utiliser Internet",
             "\u2022 Texte \u2192 IA code : colle l'URL d'un article, d'une doc, d'un blog. Le texte nourrit les complétions.\n" +
             "\u2022 Images \u2192 IA images : colle l'URL d'une page pleine de photos du même sujet (ex: une recherche d'images de chats), donne l'étiquette « chat », et hop : jusqu'à 8 images apprises d'un coup.\n" +
@@ -1046,6 +1103,7 @@ class MainActivity : Activity() {
         super.onPause()
         stopLive()
         punkRunning = false
+        explorer.cancel = true
         // Sauvegarde automatique silencieuse du profil actif
         try {
             if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) {

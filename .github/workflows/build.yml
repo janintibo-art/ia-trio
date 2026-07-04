@@ -9,6 +9,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Telecharger MobileNet (TensorFlow Lite)
+        run: |
+          mkdir -p app/src/main/assets
+          (curl -L --retry 3 -o /tmp/mn.zip https://storage.googleapis.com/download.tensorflow.org/models/tflite/mobilenet_v1_1.0_224_quant_and_labels.zip \
+            && unzip -o /tmp/mn.zip -d app/src/main/assets \
+            && ls app/src/main/assets) || echo "Modele non telecharge - l'app utilisera le mode pixels"
       - uses: gradle/actions/setup-gradle@v3
       - run: gradle assembleDebug
       - uses: actions/upload-artifact@v4

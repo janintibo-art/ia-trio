@@ -11,10 +11,11 @@ import kotlin.math.sqrt
 /**
  * IA n°1 : IMAGES (v2) — couleur RGB + data augmentation.
  */
-class ImageBrain(dir: File) {
-    private val net = NeuralNet(192, 48)
-    private val file = File(dir, "image.net")
-    private val samples = File(dir, "samples_img.txt")
+class ImageBrain(dir: File, private val tf: TFVision? = null) {
+    private val nIn = if (tf != null) 1001 else 192
+    private val net = NeuralNet(nIn, if (tf != null) 64 else 48)
+    private val file = File(dir, if (tf != null) "image_tf.net" else "image.net")
+    private val samples = File(dir, if (tf != null) "samples_img_tf.txt" else "samples_img.txt")
     init { if (file.exists()) net.load(file) }
 
     private fun remember(x: DoubleArray, label: String) {
@@ -26,7 +27,7 @@ class ImageBrain(dir: File) {
     }
 
     /** Examen : l'IA repasse sur tous les échantillons mémorisés. */
-    fun exam(): String = examOn(samples, 192) { net.predict(it).first }
+    fun exam(): String = examOn(samples, nIn) { net.predict(it).first }
 
     private fun features(bmp: Bitmap, mirror: Boolean = false, bright: Double = 1.0): DoubleArray {
         val s = Bitmap.createScaledBitmap(bmp, 8, 8, true)
@@ -42,16 +43,33 @@ class ImageBrain(dir: File) {
         return x
     }
 
+    /** Caractéristiques : MobileNet (1001) si dispo, sinon pixels (192). */
+    private fun feat(bmp: Bitmap): DoubleArray = tf?.logits(bmp) ?: features(bmp)
+
     fun learn(bmp: Bitmap, label: String) {
-        remember(features(bmp), label)
-        net.train(features(bmp), label)
-        net.train(features(bmp, mirror = true), label)
-        net.train(features(bmp, bright = 1.25), label)
-        net.train(features(bmp, bright = 0.8), label)
+        if (tf != null) {
+            // Transfer learning : les caractéristiques MobileNet sont si riches
+            // que la data augmentation n'est plus nécessaire.
+            val f = tf.logits(bmp)
+            remember(f, label)
+            net.train(f, label)
+        } else {
+            remember(features(bmp), label)
+            net.train(features(bmp), label)
+            net.train(features(bmp, mirror = true), label)
+            net.train(features(bmp, bright = 1.25), label)
+            net.train(features(bmp, bright = 0.8), label)
+        }
         net.save(file)
     }
 
-    fun guess(bmp: Bitmap) = net.predict(features(bmp))
+    fun guess(bmp: Bitmap) = net.predict(feat(bmp))
+
+    /** Ce que la base MobileNet reconnaît toute seule (~1000 objets). */
+    fun preKnowledge(bmp: Bitmap): String? =
+        tf?.classify(bmp)?.let { "${it.first} (${it.second}%)" }
+
+    fun usingTF(): Boolean = tf != null
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
     fun forget() { net.reset(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete() }

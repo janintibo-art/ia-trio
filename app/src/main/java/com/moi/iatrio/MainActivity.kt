@@ -59,6 +59,8 @@ class MainActivity : Activity() {
     private lateinit var remoteKeyField: EditText
     private lateinit var remoteAsk: EditText
     private lateinit var remoteSwitch: Switch
+    private lateinit var providerSpinner: Spinner
+    private var tfVision: TFVision? = null
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -173,6 +175,7 @@ class MainActivity : Activity() {
     // ============================================================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        tfVision = TFVision.tryLoad(this)
         remote = RemoteBrain(this)
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -256,7 +259,7 @@ class MainActivity : Activity() {
         profile = profiles.loadBehavior(name)
         profiles.saveBehavior(profile) // crée behavior.txt si absent
         val d = profiles.dir(name)
-        imageBrain = ImageBrain(d)
+        imageBrain = ImageBrain(d, tfVision)
         audioBrain = AudioBrain(d)
         codeBrain = CodeBrain(d)
         orchestrator = Orchestrator(imageBrain, audioBrain, codeBrain)
@@ -285,7 +288,7 @@ class MainActivity : Activity() {
     private fun buildTrainTab(box: LinearLayout) {
         // Images
         val ci = card(cBlue)
-        ci.addView(sectionTitle("\uD83D\uDDBC  Images (couleur)", cBlue))
+        ci.addView(sectionTitle(if (tfVision != null) "\uD83D\uDDBC  Images (TensorFlow \uD83E\uDDE0)" else "\uD83D\uDDBC  Images (couleur)", cBlue))
         imgLabel = field("Nom de l'image (ex: chat)")
         imgStatus = status()
         ci.addView(pill("Choisir une image", cBlue, cBlueDark) {
@@ -301,7 +304,8 @@ class MainActivity : Activity() {
             pill("Deviner", cBlue, cBlueDark) {
                 val b = currentBitmap ?: return@pill toast("Choisis une image")
                 val r = imageBrain.guess(b); orchestrator.lastImage = r
-                imgStatus.text = verdict(r, "Je pense :")
+                val pre = imageBrain.preKnowledge(b)?.let { "\nBase MobileNet : $it" } ?: ""
+                imgStatus.text = verdict(r, "Je pense :") + pre
             }
         ), lp(10))
         ci.addView(ghost("\uD83D\uDDD1 Oublier les images") { imageBrain.forget(); imgStatus.text = "Mémoire images effacée." }, lp(10))
@@ -568,7 +572,7 @@ class MainActivity : Activity() {
         val cr = card(Color.parseColor("#F59E0B"))
         cr.addView(sectionTitle("\u2601\uFE0F  Cerveau distant (Gemini)", Color.parseColor("#F59E0B")))
         cr.addView(TextView(this).apply {
-            text = "Un gros modèle en ligne pour épauler tes 3 IA locales. Clé gratuite sur aistudio.google.com. ATTENTION : activé, tes questions partent sur les serveurs de Google. Désactivé, tout reste 100% local. Les mémoires de tes IA ne sont jamais envoyées."
+            text = "Un gros modèle en ligne pour épauler tes 3 IA locales. Choisis ton fournisseur : Gemini et Groq ont des niveaux GRATUITS ; Claude, OpenAI et Mistral sont payants à l'usage. Chaque fournisseur garde sa propre clé. ATTENTION : activé, tes questions partent chez le fournisseur choisi. Désactivé, tout reste 100% local. Les mémoires de tes IA ne sont jamais envoyées."
             setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
         })
         remoteSwitch = Switch(this).apply {
@@ -581,6 +585,18 @@ class MainActivity : Activity() {
             }
         }
         cr.addView(remoteSwitch)
+        providerSpinner = Spinner(this)
+        providerSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, remote.providerNames())
+        providerSpinner.setSelection(remote.providerIndex)
+        providerSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                remote.providerIndex = position
+                remoteKeyField.setText(remote.apiKey)
+                remoteStatus.text = "Fournisseur : ${remote.provider.name}"
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        cr.addView(providerSpinner, lp(8))
         remoteKeyField = field("Colle ta clé API Gemini ici")
         if (remote.apiKey.isNotBlank()) remoteKeyField.setText(remote.apiKey)
         cr.addView(remoteKeyField, lp(10))
@@ -649,6 +665,12 @@ class MainActivity : Activity() {
             "1. QUANTITÉ : donne au moins 5 à 10 exemples par étiquette. Avec 1 seul exemple, l'IA apprend par cœur au lieu de comprendre.\n\n" +
             "2. VARIÉTÉ : varie les exemples ! Pour « chat » : chats de différentes couleurs, angles, arrière-plans. L'IA apprendra le concept, pas une photo précise.\n\n" +
             "3. ÉQUILIBRE : donne à peu près autant d'exemples à chaque étiquette. Si « chat » a 20 photos et « chien » 2, l'IA répondra presque toujours « chat ».")
+        tutoCard(cBlue, "\uD83E\uDDE0  TensorFlow : la super-vision",
+            "Si le titre de la carte Images affiche « TensorFlow \uD83E\uDDE0 », ton IA images utilise MobileNet, un réseau pré-entraîné sur 1,2 MILLION d'images.\n\n" +
+            "\u2022 Elle reconnaît ~1000 objets dès l'installation (ligne « Base MobileNet » sous Deviner).\n" +
+            "\u2022 Ton entraînement personnalisé se construit PAR-DESSUS cette base (transfer learning) : 3-4 exemples suffisent souvent là où il en fallait 10.\n" +
+            "\u2022 Ancien et nouveau cerveau images sont séparés : tes apprentissages pixels d'avant restent sauvegardés.\n" +
+            "\u2022 Si le modèle n'a pas pu être embarqué dans l'APK, l'app retombe automatiquement sur le mode pixels (titre « couleur »).")
         tutoCard(cBlue, "\uD83D\uDDBC  Bien entraîner les images",
             "• Choisis des photos où le sujet remplit bien l'image.\n" +
             "• Évite les arrière-plans trop chargés au début.\n" +
@@ -684,10 +706,11 @@ class MainActivity : Activity() {
             "1. Va sur aistudio.google.com (compte Google requis).\n" +
             "2. Clique sur « Get API key » \u2192 « Create API key ».\n" +
             "3. Copie la clé, colle-la dans l'onglet Profils, Enregistrer, puis active l'interrupteur.\n\n" +
+            "AUTRES FOURNISSEURS : Groq gratuit (console.groq.com), Claude (console.anthropic.com), OpenAI (platform.openai.com), Mistral (console.mistral.ai). Choisis dans la liste déroulante : chaque fournisseur garde sa propre clé.\n\n" +
             "CE QUE ÇA CHANGE :\n" +
             "\u2022 Tu peux poser des questions libres au cerveau distant.\n" +
             "\u2022 « Penser ensemble » : il commente ce que tes IA perçoivent et te conseille.\n\n" +
-            "VIE PRIVÉE : activé, tes questions partent chez Google. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
+            "VIE PRIVÉE : activé, tes questions partent chez le fournisseur choisi. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
         tutoCard(Color.parseColor("#8B5CF6"), "\uD83D\uDCCA  Le bilan et l'examen",
             "Comment savoir si tes IA sont bien entraînées ? Fais-les passer l'examen !\n\n" +
             "\u2022 L'app garde un échantillon de tout ce qui est appris (jusqu'à 400 par IA).\n" +

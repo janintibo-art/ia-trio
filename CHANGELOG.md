@@ -1,29 +1,36 @@
-# Nouveautés v12 — Examen 🏆 & Voix de l'enfant 🎤🔊
+# Nouveautés v13 — TensorFlow 🧠 & Multi-API ☁️
 
-- **📊 Carte « Bilan & Examen »** (onglet Entraîner, violette) :
-  - L'app mémorise désormais un échantillon de tout ce que les IA images et
-    sons apprennent (jusqu'à 400 chacune, rotation automatique).
-  - **🏆 Passer l'examen** : chaque IA repasse sur ses échantillons → score
-    global + note par étiquette, avec ⚠ sur celles à retravailler (< 60%).
-  - Parfait pour mesurer la progression après chaque session d'entraînement.
-- **🎤 L'enfant écoute** : bouton « Parler au micro » — reconnaissance vocale
-  française, ta phrase lui est transmise comme un message.
-- **🔊 L'enfant parle** : il répond à voix haute (synthèse vocale Android), et
-  sa voix GRANDIT avec lui : très aiguë et lente en nouveau-né, elle devient
-  progressivement grave et fluide jusqu'à l'âge adulte. Interrupteur pour
-  couper le son.
-- Les boutons « Oublier » effacent aussi les échantillons d'examen.
-- Nouvelles sections tutoriel.
+## TensorFlow Lite (transfer learning)
+- L'IA images utilise désormais **MobileNet**, un réseau pré-entraîné sur
+  1,2 million d'images, embarqué dans l'APK (~4 Mo, téléchargé automatiquement
+  par GitHub Actions pendant la construction).
+- **Elle reconnaît ~1000 objets dès l'installation** : la ligne « Base
+  MobileNet » sous « Deviner » montre ce qu'elle voit toute seule.
+- **Ton entraînement se fait par-dessus** (transfer learning sur 1001
+  caractéristiques de haut niveau au lieu des pixels bruts) : précision
+  nettement supérieure avec moins d'exemples.
+- Repli automatique sur le mode pixels si le modèle est absent. Les anciennes
+  mémoires pixels restent intactes (fichiers séparés).
 
-# v11 — Vision & Croisements  # v10 — Scan complet  # v9 — IA Enfant
-# v8 — Cerveau distant  # v7 — Internet  # v6 — Profils  # v5-v2 — Fondations
+## Cerveau distant multi-fournisseurs
+- Liste déroulante de **5 fournisseurs** : Gemini (Google, gratuit),
+  **Groq (gratuit !)**, Claude (Anthropic), OpenAI, Mistral.
+- **Chaque fournisseur garde sa propre clé API** — change de fournisseur, la
+  bonne clé se recharge automatiquement.
+- Bascule automatique de modèle par fournisseur si un modèle est retiré.
+- Où obtenir les clés : aistudio.google.com (Gemini), console.groq.com (Groq),
+  console.anthropic.com (Claude), platform.openai.com (OpenAI),
+  console.mistral.ai (Mistral).
+
+# v12 — Examen & Voix  # v11 — Vision & Croisements  # v10 — Scan complet
+# v9 — IA Enfant  # v8 — Cerveau distant  # v7-v2 — Fondations
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v12.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v13.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v12 examen voix enfant"
+git commit -m "v13 tensorflow multi-api"
 git push
 ```

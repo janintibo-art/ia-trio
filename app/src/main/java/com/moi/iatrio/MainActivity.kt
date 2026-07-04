@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
@@ -23,6 +24,8 @@ class MainActivity : Activity() {
     private lateinit var audioBrain: AudioBrain
     private lateinit var codeBrain: CodeBrain
     private lateinit var orchestrator: Orchestrator
+    private lateinit var scanner: ScanTrainer
+    private lateinit var scanStatus: TextView
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -140,6 +143,7 @@ class MainActivity : Activity() {
         audioBrain = AudioBrain(filesDir)
         codeBrain = CodeBrain(filesDir)
         orchestrator = Orchestrator(imageBrain, audioBrain, codeBrain)
+        scanner = ScanTrainer(this, imageBrain, audioBrain, codeBrain)
 
         // Fond dégradé
         val screen = LinearLayout(this).apply {
@@ -235,6 +239,23 @@ class MainActivity : Activity() {
         cc.addView(codeStatus)
         screen.addView(cc, lp(16))
 
+        // ---------- ENTRAINEMENT MASSIF ----------
+        val cm = card(Color.parseColor("#10B981"))
+        cm.addView(sectionTitle("\uD83D\uDCDA  Entraînement massif", Color.parseColor("#10B981")))
+        cm.addView(TextView(this).apply {
+            text = "Choisis un dossier (téléphone ou carte SD) : les images seront apprises avec le nom de leur dossier comme étiquette, les textes nourrissent l'IA code, les .wav l'IA sons. 100% local."
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        scanStatus = status().also { it.text = "Prêt." }
+        cm.addView(rowEqual(
+            pill("Choisir un dossier", Color.parseColor("#10B981"), Color.parseColor("#059669")) {
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 2)
+            },
+            ghost("Stop") { scanner.cancel = true }
+        ))
+        cm.addView(scanStatus)
+        screen.addView(cm, lp(16))
+
         // ---------- ORCHESTRATEUR ----------
         val cf = card(cInk)
         cf.addView(sectionTitle("\uD83E\uDDE0  Réflexion commune", cInk))
@@ -276,6 +297,22 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 2 && resultCode == RESULT_OK && data?.data != null) {
+            val tree: Uri = data.data!!
+            try {
+                contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) { }
+            scanStatus.text = "Scan en cours..."
+            scanner.scan(tree,
+                onProgress = { scanStatus.text = it },
+                onDone = {
+                    scanStatus.text = it
+                    imgStatus.text = "Appris : ${imageBrain.summary()}"
+                    audStatus.text = "Appris : ${audioBrain.summary()}"
+                    codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
+                })
+            return
+        }
         if (requestCode == 1 && resultCode == RESULT_OK && data?.data != null) {
             try {
                 contentResolver.openInputStream(data.data!!).use { currentBitmap = BitmapFactory.decodeStream(it) }

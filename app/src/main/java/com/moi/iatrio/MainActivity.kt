@@ -64,6 +64,18 @@ class MainActivity : Activity() {
     private lateinit var imgConf: ProgressBar
     private lateinit var audConf: ProgressBar
     private lateinit var liveConf: ProgressBar
+    private lateinit var tabPunk: LinearLayout
+    private lateinit var punkArena: FrameLayout
+    private lateinit var punkBox: LinearLayout
+    private lateinit var punkImg: ImageView
+    private lateinit var punkBubble: TextView
+    private lateinit var punkSource: Spinner
+    private var punkRunning = false
+    private var punkX = 0f
+    private var punkDir = 1
+    private var punkTicks = 0
+    private var punkPause = 0
+    private var lastRemoteThought = 0L
 
     private var currentBitmap: Bitmap? = null
     private var currentAudio: ShortArray? = null
@@ -209,7 +221,7 @@ class MainActivity : Activity() {
         })
 
         // Barre d'onglets
-        val tabNames = listOf("Entraîner", "Profils", "\uD83D\uDC76 Enfant", "Tuto")
+        val tabNames = listOf("Entraîner", "Profils", "\uD83D\uDC76", "\uD83E\uDD18", "Tuto")
         tabButtons = tabNames.mapIndexed { i, n ->
             Button(this).apply {
                 text = n; isAllCaps = false; stateListAnimator = null
@@ -223,14 +235,17 @@ class MainActivity : Activity() {
         tabTrain = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabProfiles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabChild = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tabPunk = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabTuto = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         buildTrainTab(tabTrain)
         buildProfilesTab(tabProfiles)
         buildChildTab(tabChild)
+        buildPunkTab(tabPunk)
         buildTutoTab(tabTuto)
         screen.addView(tabTrain, lp(14))
         screen.addView(tabProfiles, lp(14))
         screen.addView(tabChild, lp(14))
+        screen.addView(tabPunk, lp(14))
         screen.addView(tabTuto, lp(14))
 
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(screen) })
@@ -242,7 +257,8 @@ class MainActivity : Activity() {
         tabTrain.visibility = if (i == 0) View.VISIBLE else View.GONE
         tabProfiles.visibility = if (i == 1) View.VISIBLE else View.GONE
         tabChild.visibility = if (i == 2) View.VISIBLE else View.GONE
-        tabTuto.visibility = if (i == 3) View.VISIBLE else View.GONE
+        tabPunk.visibility = if (i == 3) View.VISIBLE else View.GONE
+        tabTuto.visibility = if (i == 4) View.VISIBLE else View.GONE
         tabButtons.forEachIndexed { j, b ->
             b.setTextColor(if (i == j) Color.WHITE else cInk)
             b.typeface = if (i == j) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -253,6 +269,8 @@ class MainActivity : Activity() {
         }
         if (i == 1) refreshProfilesTab()
         if (i == 2) refreshChildTab()
+        if (i == 3) refreshPunkTab()
+        if (i != 3) punkRunning = false
     }
 
     // ============================================================
@@ -775,6 +793,13 @@ class MainActivity : Activity() {
             "\u2022 Elle se trompe ? Écris le bon nom et « Apprendre cette vue » : elle apprend sur le champ. C'est la façon la plus rapide et amusante de l'entraîner.\n" +
             "\u2022 Fais le tour de la maison : tasse, plante, télécommande... 5-6 vues par objet sous différents angles et elle devient bluffante.\n" +
             "\u2022 La vision en direct alimente aussi « Penser ensemble » (l'orchestrateur).")
+        tutoCard(Color.parseColor("#84CC16"), "\uD83E\uDD18  Le Punk",
+            "Un punk se balade sur l'écran et pense à voix haute !\n\n" +
+            "\u2022 Choisis quel cerveau l'habite : le cerveau code du profil actif, n'importe quel enfant de la fratrie, ou le cerveau distant (s'il est activé).\n" +
+            "\u2022 « Libérer le punk » : il marche, fait demi-tour, s'arrête pour rêver, et une pensée lui traverse la tête toutes les quelques secondes.\n" +
+            "\u2022 Touche-le pour le faire réagir immédiatement.\n" +
+            "\u2022 Avec un enfant aux commandes, le punk parle avec SA voix (aiguë s'il est bébé !). Avec le cerveau distant, il devient carrément philosophe.\n" +
+            "\u2022 Plus le cerveau choisi a appris, plus ses pensées sont intéressantes. Un punk vide dira n'importe quoi — un punk cultivé aussi, mais avec style.")
         tutoCard(Color.parseColor("#EC4899"), "\uD83D\uDC76  L'IA Enfant",
             "Ta création la plus personnelle : une IA qui NAÎT de tes 3 IA.\n\n" +
             "\u2022 À la naissance, elle hérite du savoir des parents du profil actif + des gènes ALÉATOIRES : deux enfants ne seront jamais identiques.\n" +
@@ -1000,6 +1025,7 @@ class MainActivity : Activity() {
     override fun onPause() {
         super.onPause()
         stopLive()
+        punkRunning = false
     }
 
     // ============================================================
@@ -1067,6 +1093,159 @@ class MainActivity : Activity() {
                 audStatus.text = "Appris : ${audioBrain.summary()}"
                 codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
             })
+    }
+
+    // ============================================================
+    // ONGLET 🤘 : LE PUNK — choisis un cerveau, libère-le sur l'écran
+    private fun buildPunkTab(box: LinearLayout) {
+        val cp = card(Color.parseColor("#84CC16"))
+        cp.addView(sectionTitle("\uD83E\uDD18  Le Punk", Color.parseColor("#84CC16")))
+        cp.addView(TextView(this).apply {
+            text = "Choisis quel cerveau habite le punk, libère-le, et il se balade en racontant ce qui lui passe par la tête. Touche-le pour le faire réagir !"
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        punkSource = Spinner(this)
+        cp.addView(punkSource)
+        cp.addView(rowEqual(
+            pill("\uD83E\uDD18 Libérer le punk", Color.parseColor("#84CC16"), Color.parseColor("#65A30D")) {
+                if (!punkRunning) { punkRunning = true; punkTicks = 0; punkTick() }
+                punkThought()
+            },
+            ghost("\u23F9 Rappeler") { punkRunning = false; punkBubble.text = "..." }
+        ), lp(10))
+        cp.addView(Switch(this).apply {
+            text = "\uD83D\uDD0A Le punk parle à voix haute"
+            setTextColor(cInk)
+            isChecked = getSharedPreferences("iatrio", 0).getBoolean("punk_voice", false)
+            setOnCheckedChangeListener { _, checked ->
+                getSharedPreferences("iatrio", 0).edit().putBoolean("punk_voice", checked).apply()
+            }
+        }, lp(6))
+        box.addView(cp, lp(0))
+
+        // L'arène où il se balade
+        val ca = card(Color.parseColor("#84CC16"))
+        punkArena = FrameLayout(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.parseColor("#0F172A"), Color.parseColor("#1E293B"))
+            ).apply { cornerRadius = dp(16).toFloat() }
+        }
+        // Le sol
+        punkArena.addView(View(this).apply {
+            setBackgroundColor(Color.parseColor("#334155"))
+        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, dp(6)).apply {
+            gravity = android.view.Gravity.BOTTOM
+        })
+        // Bulle + punk, déplacés ensemble
+        punkBubble = TextView(this).apply {
+            text = "..."
+            setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            maxWidth = dp(190)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat(); setColor(Color.WHITE)
+            }
+        }
+        punkImg = ImageView(this).apply {
+            setImageResource(R.drawable.punk)
+            layoutParams = LinearLayout.LayoutParams(dp(64), dp(96))
+            setOnClickListener { punkThought() }
+        }
+        punkBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            addView(punkBubble)
+            addView(punkImg)
+        }
+        punkArena.addView(punkBox, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply { gravity = android.view.Gravity.BOTTOM; bottomMargin = dp(6) })
+        ca.addView(punkArena, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(380)))
+        box.addView(ca, lp(16))
+    }
+
+    private fun refreshPunkTab() {
+        if (!::punkSource.isInitialized) return
+        val sources = mutableListOf("\uD83D\uDCBB Cerveau code du profil « ${profile.name} »")
+        childManager.list().forEach { sources.add("\uD83D\uDC76 Enfant : $it") }
+        if (remote.ready()) sources.add("\u2601\uFE0F Cerveau distant (${remote.provider.name})")
+        val keep = punkSource.selectedItemPosition
+        punkSource.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, sources)
+        if (keep in sources.indices) punkSource.setSelection(keep)
+    }
+
+    /** La balade : avance, fait demi-tour aux bords, s'arrête parfois pour rêver. */
+    private fun punkTick() {
+        if (!punkRunning) return
+        val w = punkArena.width.toFloat()
+        val pw = punkBox.width.toFloat().coerceAtLeast(dp(64).toFloat())
+        if (w > 0) {
+            if (punkPause > 0) {
+                punkPause--
+            } else {
+                punkX += punkDir * dp(3)
+                if (punkX > w - pw) { punkX = w - pw; punkDir = -1 }
+                if (punkX < 0f) { punkX = 0f; punkDir = 1 }
+                if (Math.random() < 0.008) punkPause = 20 + (Math.random() * 40).toInt()
+                if (Math.random() < 0.005) punkDir = -punkDir
+            }
+            punkBox.translationX = punkX
+            punkImg.scaleX = punkDir.toFloat()
+            // petit rebond de marche
+            punkImg.translationY = if (punkPause > 0) 0f else (if (punkTicks % 8 < 4) 0f else -dp(3).toFloat())
+        }
+        punkTicks++
+        if (punkTicks % 90 == 0) punkThought()
+        punkArena.postDelayed({ punkTick() }, 50)
+    }
+
+    /** Une pensée lui traverse la tête, selon le cerveau choisi. */
+    private fun punkThought() {
+        val starters = listOf("Hé, ", "Tu sais quoi, ", "Je pense que ", "La vie c'est ", "Punk un jour, ", "Franchement ")
+        val labels = imageBrain.labels() + audioBrain.labels()
+        val seed = if (labels.isNotEmpty() && Math.random() < 0.4) labels[(Math.random() * labels.size).toInt()] + " "
+                   else starters[(Math.random() * starters.size).toInt()]
+        val sel = punkSource.selectedItemPosition.coerceAtLeast(0)
+        val kids = childManager.list()
+        when {
+            sel == 0 -> {
+                val t = if (codeBrain.size() > 0) codeBrain.complete(seed, 70, 85)
+                        else "Apprends-moi des trucs dans l'onglet Entraîner et je te raconterai ma vie !"
+                showPunkThought(t, 0.8f)
+            }
+            sel - 1 < kids.size -> {
+                val c = childManager.get(kids[sel - 1])
+                showPunkThought(c.speak(seed), when {
+                    c.xp < 30 -> 1.6f
+                    c.xp < 80 -> 1.35f
+                    else -> 1.0f
+                })
+            }
+            else -> {
+                val now = System.currentTimeMillis()
+                if (remote.ready() && now - lastRemoteThought > 20_000) {
+                    lastRemoteThought = now
+                    remote.ask("Tu es un punk à crête verte qui se balade sur l'écran d'un téléphone. Dis UNE pensée courte (max 20 mots), drôle et punk, en français.") {
+                        showPunkThought(it, 0.8f)
+                    }
+                } else if (codeBrain.size() > 0) {
+                    showPunkThought(codeBrain.complete(seed, 70, 85), 0.8f)
+                }
+            }
+        }
+    }
+
+    private fun showPunkThought(text: String, pitch: Float) {
+        val t = text.take(120).replace("\n", " ")
+        punkBubble.text = t
+        if (ttsReady && getSharedPreferences("iatrio", 0).getBoolean("punk_voice", false)) {
+            try {
+                tts?.setPitch(pitch)
+                tts?.setSpeechRate(1.0f)
+                tts?.speak(t, TextToSpeech.QUEUE_FLUSH, null, "punk")
+            } catch (e: Exception) { }
+        }
     }
 
     // ============================================================

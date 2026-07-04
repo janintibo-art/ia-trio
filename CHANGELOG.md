@@ -1,27 +1,33 @@
-# Nouveautés v14 — Les idées retrouvées ✨
+# Nouveautés v15 — Le Punk 🤘
 
-Trois idées proposées au début du projet, enfin réalisées :
+Inspiré du Tamagauchiste : un punk se balade sur l'écran et raconte ce qui
+lui passe par la tête !
 
-- **📊 Barres de confiance visuelles** (idée de la v2) : sous chaque devinette
-  (images, sons, vision en direct), une barre colorée montre la confiance
-  d'un coup d'œil — rouge = l'IA doute, orange = moyen, vert = sûre.
-  Les seuils suivent le réglage « prudence » du profil.
-- **📱 Icône adaptative** (idée de la v3) : ton icône s'adapte maintenant à la
-  forme du lanceur Android (rond, carré arrondi, goutte...) au lieu d'être
-  figée — comme les vraies apps du Play Store.
-- **📈 Tableau de bord de progression** : chaque examen est archivé par profil.
-  Dès le 2e examen, un mini-graphique (▁▃▅▇) de tes 12 derniers scores
-  s'affiche : tu VOIS littéralement tes IA progresser dans le temps.
+- **Nouvel onglet 🤘** avec une arène nocturne où le punk marche, fait
+  demi-tour aux bords, s'arrête parfois pour rêver, avec une petite animation
+  de marche et un retournement quand il change de direction.
+- **Choisis le cerveau qui l'habite** (liste déroulante) :
+  - 💻 le cerveau code du profil actif — ses pensées viennent de tout ce que
+    tu lui as appris (code, Wikipédia, scans...)
+  - 👶 n'importe quel enfant de la fratrie — le punk gazouille si c'est un
+    bébé, et parle avec SA voix !
+  - ☁️ le cerveau distant (s'il est activé) — le punk devient philosophe
+    (1 pensée distante max toutes les 20 s pour économiser ton quota)
+- **Touche le punk** pour le faire réagir immédiatement.
+- **Interrupteur 🔊** : il dit ses pensées à voix haute (voix grave de punk,
+  ou la voix de l'enfant choisi).
+- Le punk actuel est un pixel-art temporaire : envoie l'image de TON punk du
+  Tamagauchiste et il sera intégré à l'identique (ou remplace toi-même
+  app/src/main/res/drawable/punk.png).
 
-# v13 — TensorFlow & Multi-API  # v12 — Examen & Voix  # v11 — Vision & Croisements
-# v10 — Scan complet  # v9 — IA Enfant  # v8-v2 — Fondations
+# v14 — Polish  # v13 — TensorFlow & Multi-API  # v12-v2 — Fondations
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v14.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v15.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v14 barres confiance icone adaptative progression"
+git commit -m "v15 le punk"
 git push
 ```

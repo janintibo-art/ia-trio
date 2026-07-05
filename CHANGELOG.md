@@ -1,36 +1,36 @@
-# Nouveautés v26 — Vraie composition 🎼
+# Nouveautés v27 — REMIX de tes vrais morceaux 🎛
 
-Le moteur musical passe de « mélodie sympa » à « vrai morceau ».
+Fini l'imitation : l'IA réutilise maintenant TES fichiers audio.
 
-- **🎹 Progressions d'accords** : I-V-vi-IV (la pop éternelle), I-vi-IV-V
-  (doo-wop), vi-IV-I-V (émotion), I-IV-I-V (blues) — choisie par la graine.
-  La basse suit les fondamentales, et la mélodie glisse vers les notes
-  d'accord sur les temps forts. C'est CE qui fait que ça sonne juste.
-- **🏗 Structure AABA (8 mesures)** : couplet, couplet, PONT contrasté
-  (registre plus haut, rythme plus dense), retour. Un vrai arc musical.
-- **🥁 Batterie synthétisée** : kick (sinus glissant), caisse claire (bruit +
-  corps), charley (bruit aigu filtré), avec accents, roulements de fin de
-  section, et volume dosé par l'énergie de TA bibliothèque. Exportée sur le
-  **canal 10 MIDI** (notes GM standard 36/38/42) — dans ton DAW, elle arrive
-  directement sur la piste batterie !
-- **🎵 Rythmes vivants** : motifs par mesure (du sage au syncopé), silences
-  musicaux, notes tenues en fin de phrase, la mélodie chante toujours la
-  pensée de l'IA mais l'harmonie la corrige.
-- **✨ La créativité du profil pilote tout** : syncopes, ornements (notes de
-  grâce), audace des écarts. Profil 🎯 Précis = compo sage ; 🎨 Créatif =
-  ça part en impro. Deux profils = deux compositeurs.
-- **🎚 Écho « dotted eighth »** : le delay classique de production, appliqué
-  au mixage final.
-- Morceaux plus longs (8 mesures, ~15-25 s selon le tempo).
+- **Banque d'extraits réels** : à chaque musique apprise, les 3 tranches les
+  plus énergiques (0,5 s de VRAI audio) sont conservées — jusqu'à 400
+  extraits de tes morceaux, par profil, effacés par « Oublier les sons ».
+- **Moteur de remix façon sampler MPC** (utilisé en priorité dès que la
+  banque contient 3 extraits ou plus) :
+  - **Chops rythmiques** : tes sons découpés sur la grille (structure AABA,
+    motifs syncopés), pitchés en varispeed (±7 demi-tons selon la
+    créativité), parfois INVERSÉS si le profil est créatif ;
+  - **Nappe de fond** : un de tes extraits ralenti d'une octave, bouclé ;
+  - **Basse** : ton propre son pitché à -17 demi-tons sur les temps ;
+  - la pensée de l'IA choisit quels extraits jouer et quand ;
+  - écho croisé stéréo + saturation douce au mastering.
+  RIEN n'est synthétisé : chaque son du morceau vient de TES fichiers.
+- **Ciblage** : « rock » → remix de ton dossier rock ; autre texte → mélange
+  de toute ta bibliothèque. Le toast indique le nombre d'extraits utilisés
+  et la taille de la banque.
+- **Sortie STÉRÉO** (lecture et WAV) ; le synthé v26 (44,1 kHz, accords,
+  batterie, réverbe) reste en repli si la banque est vide.
+- ⚠ La banque se remplit À L'APPRENTISSAGE : rescanne ton dossier musique
+  une fois après cette mise à jour.
 
-# v25 — Export MIDI  # v24 — Sonorités  # v23 — Performances  # v22-v2
+# v26 — Composition  # v25 — MIDI  # v24 — Sonorités  # v23-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v26.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v27.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v26 vraie composition"
+git commit -m "v27 remix vrais morceaux"
 git push
 ```

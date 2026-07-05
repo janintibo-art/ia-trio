@@ -906,6 +906,7 @@ class MainActivity : Activity() {
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
             "VRAIE COMPOSITION \uD83C\uDFBC : progressions d'accords (I-V-vi-IV...), structure AABA (couplet/pont/retour), rythmes variés avec syncopes, BATTERIE synthétisée (kick, caisse claire, charley — exportée sur le canal 10 MIDI !), écho de production. La CRÉATIVITÉ de ton profil pilote les syncopes, les ornements et l'audace mélodique : profil Précis = sage, profil Créatif = ça part en impro !\n\n" +
             "EXPORT MIDI \uD83C\uDFB9 : chaque composition est aussi sauvée en .mid (mélodie canal 1, basse canal 2, tempo inclus) — ouvre-le dans FL Studio, Ableton, GarageBand ou MuseScore pour changer les instruments, corriger des notes, ajouter des pistes. L'IA compose, TU produis !\n\n" +
+            "REMIX DE TES VRAIS MORCEAUX \uD83C\uDF9B : l'IA garde les meilleurs extraits AUDIO RÉELS de chaque musique apprise (banque jusqu'à 400 extraits). À la création, elle les découpe et les réarrange façon sampler MPC : chops rythmiques pitchés, nappe de fond (ton morceau ralenti), basse (ton son à l'octave grave), inversions si créativité haute. RIEN n'est synthétisé : chaque son vient de TES fichiers. Écris « rock » pour remixer ton dossier rock. Rescanne ta musique une fois pour remplir la banque !\n\n" +
             "SONORITÉ DE TA MUSIQUE \uD83C\uDFB8 : l'IA mémorise l'empreinte spectrale (32 bandes) de chaque morceau appris. À la création, cette empreinte façonne les HARMONIQUES des notes, la hauteur, le tempo et l'attaque : scanne du rock \u2192 notes mordantes ; du piano doux \u2192 notes chaudes. Écris « rock » pour la sonorité rock précise, ou n'importe quoi pour la couleur générale de ta bibliothèque. (Rescanne ta musique une fois après cette mise à jour pour capturer les empreintes !)\n\n" +
             "NOURRI PAR SA MÉMOIRE : si ton texte contient un mot que l'IA connaît (« chat », « plage »...), l'image est peinte avec les VRAIES couleurs de tes photos apprises + une mosaïque fantôme du souvenir en fond. Et la mélodie CHANTE la pensée de l'IA : sa complétion de texte est convertie note par note (les voyelles durent plus longtemps !).\n\n" +
             "Idée : apprends 10 photos de coucher de soleil, puis écris « coucher de soleil » — compare l'image AVANT et APRÈS l'apprentissage. La différence, c'est sa mémoire !")
@@ -1319,14 +1320,20 @@ class MainActivity : Activity() {
         toast("Composition en cours...")
         Thread {
             val thought = if (codeBrain.size() > 0) codeBrain.complete(t.take(20), 90, 60) else ""
-            // Sonorité : timbres du sujet demandé, sinon la couleur générale de TA musique
-            val matched = audioBrain.matchTimbres(t)
-            val timbres = matched.ifEmpty { audioBrain.allTimbres().shuffled().take(6) }
-            val pcm = creator.makeMusic(t, thought, timbres, profile.creativity)
-            val sono = when {
-                matched.isNotEmpty() -> " Sonorité de : ${matched.joinToString(", ") { it.first }}."
-                timbres.isNotEmpty() -> " Sonorité générale de ta musique."
-                else -> ""
+            // PRIORITÉ : remix des VRAIS extraits de ta musique
+            val clips = audioBrain.matchClips(t).ifEmpty { audioBrain.anyClips() }
+            val pcm: ShortArray
+            val sono: String
+            if (clips.size >= 3) {
+                pcm = creator.makeRemix(t, clips, profile.creativity, thought)
+                sono = " REMIX de tes morceaux (${clips.size} extraits réels, ${audioBrain.clipCount()} en banque) !"
+            } else {
+                // Repli : synthé façonné par les timbres (si banque vide)
+                val matched = audioBrain.matchTimbres(t)
+                val timbres = matched.ifEmpty { audioBrain.allTimbres().shuffled().take(6) }
+                pcm = creator.makeMusic(t, thought, timbres, profile.creativity)
+                sono = if (timbres.isNotEmpty()) " Sonorité de ta musique (scanne tes morceaux pour un vrai remix !)"
+                       else " (Scanne ta musique pour que je remixe TES morceaux !)"
             }
             lastMusic = pcm
             var saved = ""
@@ -1340,7 +1347,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) { }
             runOnUiThread {
                 creator.play(pcm)
-                toast(if (thought.length > 8) "\uD83C\uDFB5 L'IA chante sa pensée !$sono$saved" else "\uD83C\uDFB5 Ta musique !$sono$saved")
+                toast("\uD83C\uDFB5$sono$saved")
             }
         }.start()
     }

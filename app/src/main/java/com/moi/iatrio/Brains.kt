@@ -225,6 +225,59 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
         return x
     }
 
+    // BANQUE D'EXTRAITS RÉELS : vrais morceaux de TES musiques (PCM 16 kHz)
+    private val clipDir = File(dir, "clips").apply { mkdirs() }
+    private var clipIdx = (clipDir.listFiles()?.size ?: 0)
+
+    /** Garde les 3 tranches les plus énergiques (0,5 s) du son appris. */
+    private fun rememberClip(pcm: ShortArray, label: String) {
+        try {
+            val win = 8000   // 0,5 s à 16 kHz
+            if (pcm.size < win) return
+            val slices = ArrayList<Pair<Double, Int>>()
+            var off = 0
+            while (off + win <= pcm.size) {
+                var e = 0.0
+                for (i in off until off + win) { val v = pcm[i].toDouble() / 32768.0; e += v * v }
+                slices.add(Pair(e, off)); off += win
+            }
+            val safe = label.lowercase().replace(Regex("[^a-z0-9_-]"), "").ifBlank { "son" }
+            for ((_, o) in slices.sortedByDescending { it.first }.take(3)) {
+                val f = File(clipDir, "${safe}__${clipIdx++}.pcm")
+                val bytes = ByteArray(win * 2)
+                for (i in 0 until win) {
+                    bytes[i * 2] = (pcm[o + i].toInt() and 0xFF).toByte()
+                    bytes[i * 2 + 1] = (pcm[o + i].toInt() shr 8 and 0xFF).toByte()
+                }
+                f.writeBytes(bytes)
+            }
+            // plafond : 400 extraits, on supprime les plus vieux
+            val all = clipDir.listFiles()?.sortedBy { it.lastModified() } ?: return
+            if (all.size > 400) all.take(all.size - 400).forEach { it.delete() }
+        } catch (e: Exception) { }
+    }
+
+    /** Extraits correspondant au texte (par étiquette), sinon vide. */
+    fun matchClips(prompt: String): List<ShortArray> {
+        val words = prompt.lowercase().split(Regex("[^\\p{L}0-9]+")).filter { it.length > 2 }
+        val files = clipDir.listFiles()?.filter { f ->
+            val l = f.name.substringBefore("__").lowercase()
+            words.any { w -> l.contains(w) || w.contains(l) }
+        } ?: emptyList()
+        return files.shuffled().take(24).mapNotNull { loadClip(it) }
+    }
+
+    /** N'importe quels extraits de ta bibliothèque (mélange). */
+    fun anyClips(max: Int = 24): List<ShortArray> =
+        (clipDir.listFiles()?.toList() ?: emptyList()).shuffled().take(max).mapNotNull { loadClip(it) }
+
+    fun clipCount(): Int = clipDir.listFiles()?.size ?: 0
+
+    private fun loadClip(f: File): ShortArray? = try {
+        val b = f.readBytes()
+        ShortArray(b.size / 2) { i -> (((b[i * 2 + 1].toInt() shl 8) or (b[i * 2].toInt() and 0xFF)).toShort()) }
+    } catch (e: Exception) { null }
+
     // Mémoire des TIMBRES : empreinte spectrale moyenne (32 bandes) par étiquette
     private val timbreFile = File(dir, "timbre_aud.txt")
     private val timbres = HashMap<String, Pair<Int, DoubleArray>>()
@@ -272,6 +325,7 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
     private fun feat(pcm: ShortArray): DoubleArray = tfa?.scores(pcm) ?: features(pcm)
 
     fun learn(pcm: ShortArray, label: String) {
+        rememberClip(pcm, label)               // extrait RÉEL pour le remix
         rememberTimbre(features(pcm), label)   // empreinte spectrale, toujours en FFT
         val x = feat(pcm)
         remember(x, label)
@@ -288,7 +342,7 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
     fun usingTF(): Boolean = tfa != null
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
-    fun forget() { net.reset(); timbres.clear(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete(); if (timbreFile.exists()) timbreFile.delete() }
+    fun forget() { net.reset(); timbres.clear(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete(); if (timbreFile.exists()) timbreFile.delete(); clipDir.listFiles()?.forEach { it.delete() } }
 }
 
 /** Fonction d'examen commune : relit les échantillons et calcule les scores. */

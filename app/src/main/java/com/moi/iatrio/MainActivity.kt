@@ -80,6 +80,7 @@ class MainActivity : Activity() {
     private var lastMusic: ShortArray? = null
     private val lastCreations = ArrayList<File>()
     private lateinit var createTempo: Spinner
+    private lateinit var createGenre: Spinner
     private lateinit var createLen: Spinner
     private lateinit var createStatus: TextView
     private lateinit var chatBox: LinearLayout
@@ -914,6 +915,7 @@ class MainActivity : Activity() {
             "RÉCUPÉRER TES CRÉATIONS \uD83D\uDCE4 : le plus simple est le bouton PARTAGER — il envoie directement le .wav + .mid (ou le .png) vers WhatsApp, Drive, Gmail, ton PC... Le bouton \u25B6 Réécouter rejoue la dernière musique. Les fichiers apparaissent aussi maintenant instantanément dans tes applis Fichiers et Musique (scan média automatique).\n\n" +
             "OÙ SONT MES FICHIERS ? Après chaque génération, le statut affiche les noms exacts : musique_XXXX.wav (l'audio) et musique_XXXX.mid (la partition MIDI), dans Download/IATrio/creations/. Ouvre ton gestionnaire de fichiers \u2192 Téléchargements \u2192 IATrio \u2192 creations. Si le statut affiche \u26A0, autorise « Accès à tous les fichiers » (onglet IA, bouton TOUT scanner) puis regénère.\n\n" +
             "EXPORT MIDI \uD83C\uDFB9 : chaque composition est aussi sauvée en .mid (mélodie canal 1, basse canal 2, tempo inclus) — ouvre-le dans FL Studio, Ableton, GarageBand ou MuseScore pour changer les instruments, corriger des notes, ajouter des pistes. L'IA compose, TU produis !\n\n" +
+            "LES GENRES \uD83E\uDD41 : 12 styles avec leurs VRAIS codes — Hip-hop (boom-bap swingué 85-95 BPM), Trap (caisse en half-time, charleys en doubles-croches), House (kick four-on-the-floor), Reggae (one drop + skank à contretemps), Reggaeton (dembow !), Funk, Rock, Techno, Drum'n'bass, Lo-fi, Afrobeat, Pop. Choisis dans la liste, écris un mot-clé (« un beat reggae posé ») ou laisse en auto. La grille est passée en doubles-croches (16 pas) pour les patterns fins. Le toast t'annonce le genre et le tempo choisis.\n\n" +
             "GROOVE & JUSTESSE \uD83C\uDFB6 : les extraits sont maintenant coupés PILE sur leur attaque (détection de transitoires) donc les chops frappent sur le temps ; la hauteur dominante de chaque extrait est détectée et TOUT est ramené dans la tonalité de la basse (une seule tonalité = justesse) ; les croches impaires swinguent (le groove humain, dosé par la créativité) ; une montée inversée (riser) annonce le pont. Rescanne ta musique une fois pour bénéficier des extraits alignés !\n\n" +
             "ARRANGEMENT \uD83C\uDFD7 : chaque morceau a désormais une histoire — INTRO (le décor se pose, la basse attend), COUPLETS (motif répété), PONT (la nappe se tait, tout monte à l'octave), OUTRO (fondu final). Et le DUCKING sidechain : la nappe et les chops s'écartent à chaque kick — c'est la « respiration » qu'on entend dans toute la musique produite moderne.\n\n" +
             "REMIX HARMONIQUE DE TES VRAIS MORCEAUX \uD83C\uDF9B : l'IA garde les meilleurs extraits AUDIO RÉELS de ta musique (banque 400 extraits) et remixe comme un producteur : elle ANALYSE tes extraits et leur donne des RÔLES fixes (le plus grave = basse filtrée, le plus brillant = charley, les médiums = chops mélodiques) ; elle compose UN motif puis le RÉPÈTE avec variations (répétition = musique) ; et elle TRANSPOSE tout selon une progression d'accords (I-V-vi-IV) — c'est là que naît l'harmonie. Le pont change de motif et monte à l'octave, la nappe se tait pour la tension. RIEN n'est synthétisé. Rescanne ta musique une fois pour remplir la banque !\n\n" +
@@ -1264,7 +1266,11 @@ class MainActivity : Activity() {
         })
         createPrompt = field("Ex : coucher de soleil punk sur l'océan")
         cc.addView(createPrompt)
-        cc.addView(body("Tempo et longueur du morceau :"), lp(10))
+        cc.addView(body("Genre, tempo et longueur du morceau :"), lp(10))
+        createGenre = Spinner(this)
+        createGenre.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            listOf("\uD83C\uDFB2 Genre auto") + MusicStyles.all.map { "${it.name} (${it.bpmLo}-${it.bpmHi} BPM)" })
+        cc.addView(createGenre, lp(6))
         createTempo = Spinner(this)
         createTempo.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
             listOf("Tempo auto", "70 BPM (lent)", "85 BPM", "100 BPM", "120 BPM", "140 BPM", "160 BPM (rapide)"))
@@ -1384,8 +1390,10 @@ class MainActivity : Activity() {
             if (clips.size >= 3) {
                 val bpmSel = listOf(0, 70, 85, 100, 120, 140, 160)[createTempo.selectedItemPosition.coerceIn(0, 6)]
                 val barsSel = listOf(4, 8, 16, 32)[createLen.selectedItemPosition.coerceIn(0, 3)]
-                pcm = creator.makeRemix(t, clips, profile.creativity, thought, bpmSel, barsSel)
-                sono = " REMIX de tes morceaux (${clips.size} extraits réels, ${audioBrain.clipCount()} en banque) !"
+                val gPos = createGenre.selectedItemPosition
+                val gName = if (gPos <= 0) "auto" else MusicStyles.all[(gPos - 1).coerceIn(0, MusicStyles.all.size - 1)].name
+                pcm = creator.makeRemix(t, clips, profile.creativity, thought, bpmSel, barsSel, gName)
+                sono = " REMIX ${creator.lastStyle} à ${creator.lastBpm} BPM (${clips.size} extraits réels) !"
             } else {
                 // Repli : synthé façonné par les timbres (si banque vide)
                 val matched = audioBrain.matchTimbres(t)

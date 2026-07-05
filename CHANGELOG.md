@@ -1,39 +1,37 @@
-# Nouveautés v35 — Marathon & grande bibliothèque 🏃📚
+# Nouveautés v36 — Fusion de genres & mix clair 🎛✨
 
-## Des morceaux de plus de 5 minutes
-- **Nouveaux formats** : Épique (64 mesures ≈ 3 min) et **Marathon
-  (128 mesures ≈ 6 min)** — le remix tient la distance : les motifs se
-  RENOUVELLENT toutes les 16 mesures (jamais lassant), l'arc
-  intro/pont/final s'étire proportionnellement, l'harmonie continue de
-  tourner.
-- **Ingénierie mémoire** pour y arriver :
-  - buffers audio en Float (2× moins de RAM que Double) ;
-  - mastering en deux passes SANS tableaux intermédiaires ;
-  - grande mémoire Android activée (largeHeap) ;
-  - **lecture en streaming** par blocs — l'ancien mode statique plantait
-    au-delà d'une minute, celui-ci joue n'importe quelle durée.
-- Un Marathon se génère en ~1-2 minutes sur téléphone : laisse l'app
-  ouverte, le toast et le statut arrivent à la fin. Le WAV fait ~22 Mo,
-  le MIDI reste minuscule. (Le synthé de repli reste limité à 64 mesures.)
+## Fini le rendu brouillon : les couloirs de fréquences
+Le diagnostic : chaque extrait de 0,5 s contient le MIX COMPLET du morceau
+d'origine (basse + batterie + voix). En empiler plusieurs = bouillie.
+Le remède des ingénieurs du son, maintenant dans l'app : chaque rôle est
+FILTRÉ dans sa bande de fréquences :
+- **Basse** : passe-bas 200 Hz — que le grave.
+- **Kick** : passe-bas 150 Hz — un vrai « thump » tiré de ton son.
+- **Caisse claire** : passe-haut 1200 Hz — un « snap », plus un bout de chanson.
+- **Charley** : passe-haut 3000 Hz — pure brillance.
+- **Nappe** : cantonnée 250-600 Hz — le médium, sa place, rien d'autre.
+- **Chops** : passe-haut 350 Hz + ENVELOPPE PERCUSSIVE (ils frappent puis
+  s'effacent) — ils ne marchent plus jamais sur la basse.
+- Écho réduit à 0,10 pour la netteté. Résultat : chaque élément s'entend.
 
-## Pensé pour tes 15 000 musiques
-- **Scan complet : 6000 sons par passage** (au lieu de 3000) et jusqu'à
-  **300 000 fichiers visités** ; scan de dossier : 2000 sons.
-- **Banque de remix : 2000 extraits réels** (au lieu de 400, ~32 Mo) —
-  ta discothèque devient une palette géante, et chaque remix pioche
-  parmi 32 extraits.
-- Rappel : les scans sont CUMULATIFS (Stop quand tu veux, reprends plus
-  tard) et un passage sur 6000 musiques prend du temps (~1-2 s par
-  fichier) — parfait pendant une charge de nuit. 🔌🌙
+## Fusion de genres ×
+- **2e sélecteur de genre** : les COUPLETS suivent le genre principal, le
+  PONT bascule entièrement dans le second (motifs, batterie, swing), et le
+  dernier quart du morceau est HYBRIDE : kick du premier + charleys et
+  caisse du second. Tempo = moyenne des deux plages (ton réglage manuel
+  garde la priorité).
+- Le toast et le style affichent la fusion : « REMIX Punk × Balkan à
+  138 BPM ». Combinaisons conseillées : Punk × Balkan, Baroque × Trap,
+  Reggae × Breakcore, Lo-fi × Techno... 19 genres = 342 fusions possibles.
 
-# v34 — Les marges  # v33 — Genres  # v32 — Groove  # v31-v2
+# v35 — Marathon  # v34 — Marges  # v33 — Genres  # v32-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v35.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v36.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v35 marathon grande bibliotheque"
+git commit -m "v36 fusion genres mix clair"
 git push
 ```

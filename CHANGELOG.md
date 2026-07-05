@@ -1,38 +1,37 @@
-# Nouveautés v23 — Performances ⚡
+# Nouveautés v24 — La sonorité de TA musique 🎸
 
-Les IA deviennent nettement plus intelligentes, avec les mêmes données.
+La musique générée sonne maintenant comme la tienne.
 
-- **🔁 Replay anti-oubli (LE gros correctif)** : jusqu'ici, chaque nouvel
-  exemple était appris intensément... en écrasant partiellement les anciens
-  (« oubli catastrophique »). Désormais, à chaque apprentissage, l'IA révise
-  automatiquement 24 anciens souvenirs — sa mémoire reste stable et
-  s'améliore au lieu de se dégrader.
-- **🏋️ Ré-entraîner tout** (carte Bilan) : consolidation complète — 8 passes
-  mélangées sur toute la mémoire avec taux d'apprentissage dégressif (la
-  bonne méthode). À lancer après une grosse session de scan : le score
-  d'examen grimpe visiblement. Les souvenirs sont maintenant gardés en
-  mémoire vive (cache), donc c'est rapide.
-- **🥇🥈🥉 Top 3 des devinettes** : « Je pense : chat (72%) — Aussi possible :
-  chien 18% · voiture 5% ». Parfait pour repérer les confusions et savoir
-  quoi entraîner.
-- **📝 IA code à contexte long** : modèle à repli 5→4→3 caractères — elle
-  essaie d'abord le contexte le plus précis, se replie sinon. Complétions
-  bien plus cohérentes. + plafond de corpus (500 Ko, garde le plus récent)
-  pour rester rapide même après des mois d'exploration.
-- Hyperparamètres rééquilibrés (le replay compense des epochs réduits :
-  apprentissage individuel plus rapide ET meilleur).
+- **Mémoire des timbres** : à chaque son/musique appris, l'IA mémorise son
+  empreinte spectrale (32 bandes de fréquences), moyennée par étiquette
+  (fichier timbre_aud.txt). Tes dossiers rock/, jazz/, piano/... deviennent
+  des palettes sonores.
+- **Synthèse façonnée par tes morceaux** : l'empreinte contrôle
+  - les **harmoniques** de chaque note (synthèse additive 8 harmoniques) :
+    musique brillante → notes cristallines, musique grave → notes chaudes ;
+  - la **hauteur** de base (centre spectral : brillant = plus aigu) ;
+  - le **tempo** (musique énergique dans les aigus = plus rapide) ;
+  - l'**attaque/déclin** (brillant = percussif, sombre = nappes) ;
+  - le **volume de la basse** (dosé sur les graves de ta bibliothèque).
+- **Ciblage intelligent** : écris « rock » → sonorité exacte de ton dossier
+  rock ; texte sans correspondance → mélange de la couleur générale de ta
+  bibliothèque (6 empreintes au hasard). Le toast t'indique la sonorité
+  utilisée.
+- La mélodie continue de « chanter la pensée » de l'IA (v22) — maintenant
+  avec TON grain sonore.
 
-Conseil : après la mise à jour, appuie une fois sur « 🏋️ Ré-entraîner tout »
-puis « Passer l'examen » — compare avec ton dernier score. 📈
+⚠ Important : les empreintes se capturent À L'APPRENTISSAGE. Rescanne ton
+dossier musique une fois après cette mise à jour (les plafonds sont à 1000/
+3000 sons depuis la v22, ça passe large).
 
-# v22 — Créations & mémoire  # v21 — Scan Turbo  # v20-v2 — Fondations
+# v23 — Performances  # v22 — Créations & mémoire  # v21-v2 — Fondations
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v23.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v24.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v23 performances replay consolidation"
+git commit -m "v24 sonorites de ma musique"
 git push
 ```

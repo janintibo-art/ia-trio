@@ -225,10 +225,54 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
         return x
     }
 
+    // Mémoire des TIMBRES : empreinte spectrale moyenne (32 bandes) par étiquette
+    private val timbreFile = File(dir, "timbre_aud.txt")
+    private val timbres = HashMap<String, Pair<Int, DoubleArray>>()
+    init {
+        try {
+            if (timbreFile.exists()) for (line in timbreFile.readLines()) {
+                val parts = line.split("|")
+                if (parts.size == 3) {
+                    val arr = parts[2].split(",").mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+                    if (arr.size == bands) timbres[parts[0]] = Pair(parts[1].toIntOrNull() ?: 1, arr)
+                }
+            }
+        } catch (e: Exception) { }
+    }
+
+    private fun rememberTimbre(spec: DoubleArray, label: String) {
+        val old = timbres[label]
+        val merged = if (old == null) Pair(1, spec.copyOf())
+        else {
+            val (n, avg) = old
+            Pair(n + 1, DoubleArray(bands) { (avg[it] * n + spec[it]) / (n + 1) })
+        }
+        if (timbres.size < 120 || timbres.containsKey(label)) timbres[label] = merged
+        try {
+            timbreFile.bufferedWriter().use { w ->
+                for ((l, pn) in timbres) w.appendLine(l + "|" + pn.first + "|" + pn.second.joinToString(","))
+            }
+        } catch (e: Exception) { }
+    }
+
+    /** Timbres dont l'étiquette apparaît dans le texte (ou l'inverse). */
+    fun matchTimbres(prompt: String): List<Pair<String, DoubleArray>> {
+        val words = prompt.lowercase().split(Regex("[^\\p{L}0-9]+")).filter { it.length > 2 }
+        return timbres.entries.filter { (label, _) ->
+            val l = label.lowercase()
+            words.any { w -> l.contains(w) || w.contains(l) }
+        }.map { Pair(it.key, it.value.second) }
+    }
+
+    /** Toute la sonorité générale apprise (pour le mélange par défaut). */
+    fun allTimbres(): List<Pair<String, DoubleArray>> =
+        timbres.entries.map { Pair(it.key, it.value.second) }
+
     /** Caractéristiques : YAMNet (521) si dispo, sinon FFT maison (32). */
     private fun feat(pcm: ShortArray): DoubleArray = tfa?.scores(pcm) ?: features(pcm)
 
     fun learn(pcm: ShortArray, label: String) {
+        rememberTimbre(features(pcm), label)   // empreinte spectrale, toujours en FFT
         val x = feat(pcm)
         remember(x, label)
         net.train(x, label, 0.05, 25)
@@ -244,7 +288,7 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
     fun usingTF(): Boolean = tfa != null
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
-    fun forget() { net.reset(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete() }
+    fun forget() { net.reset(); timbres.clear(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete(); if (timbreFile.exists()) timbreFile.delete() }
 }
 
 /** Fonction d'examen commune : relit les échantillons et calcule les scores. */

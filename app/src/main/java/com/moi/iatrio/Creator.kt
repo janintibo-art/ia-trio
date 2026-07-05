@@ -156,7 +156,7 @@ class Creator {
      * Composition algorithmique : le texte choisit la gamme, le tempo, la
      * racine et la mélodie (marche aléatoire sur la gamme) + une basse.
      */
-    fun makeMusic(prompt: String, thought: String = ""): ShortArray {
+    fun makeMusic(prompt: String, thought: String = "", timbres: List<Pair<String, DoubleArray>> = emptyList()): ShortArray {
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
         val scales = listOf(
@@ -166,8 +166,36 @@ class Creator {
             listOf(0, 2, 3, 6, 7, 8, 11)    // orientale : mystérieux
         )
         val scale = scales[rnd.nextInt(scales.size)]
-        val root = 220.0 * 2.0.pow(rnd.nextInt(8) / 12.0)
-        val bpm = 84 + rnd.nextInt(56)
+
+        // ===== LA SONORITÉ DE TA MUSIQUE =====
+        // Empreinte spectrale moyenne des morceaux appris (32 bandes) :
+        // elle façonne les harmoniques, la hauteur, le tempo et l'attaque.
+        val tb: DoubleArray? = if (timbres.isEmpty()) null else {
+            val avg = DoubleArray(32)
+            for ((_, t) in timbres) for (i in 0 until 32) avg[i] += t[i] / timbres.size
+            val mx = avg.maxOrNull() ?: 1.0
+            if (mx > 0) for (i in avg.indices) avg[i] /= mx
+            avg
+        }
+        // Centre spectral : où se concentre l'énergie (grave 0 ... aigu 31)
+        val centroid = tb?.let { t ->
+            var num = 0.0; var den = 1e-9
+            for (i in t.indices) { num += i * t[i]; den += t[i] }
+            num / den
+        } ?: 10.0
+        // Harmoniques des notes tirées de l'empreinte (repli : timbre doux)
+        val harm = DoubleArray(8) { k ->
+            val v = tb?.get(((k + 1) * 3).coerceAtMost(31)) ?: when (k) {
+                0 -> 0.6; 1 -> 0.25; 2 -> 0.1; else -> 0.0
+            }
+            v.coerceAtLeast(if (k == 0) 0.35 else 0.0)
+        }
+        run { val s = harm.sum(); if (s > 0) for (i in harm.indices) harm[i] = harm[i] / s * 0.95 }
+
+        val rootMul = (0.7 + centroid / 16.0).coerceIn(0.7, 2.0)      // musique brillante -> plus haut
+        val root = 220.0 * 2.0.pow(rnd.nextInt(8) / 12.0) * rootMul
+        val bpm = (84 + rnd.nextInt(56) + ((centroid - 10) * 3).toInt()).coerceIn(70, 160)
+        val decayRate = (2.0 + centroid * 0.15)                        // brillant = plus percussif
         val noteDur = 60.0 / bpm / 2.0            // croches
         val nNotes = 48
         val total = (rate * noteDur * nNotes).toInt() + rate / 2
@@ -179,10 +207,12 @@ class Creator {
                 val idx = start + i
                 if (idx >= total) break
                 val t = i.toDouble() / rate
-                val env = (1 - exp(-t * 60)) * exp(-t * 3.2)   // attaque + déclin
-                val s = sin(2 * PI * freq * t) * 0.6 +
-                        sin(2 * PI * freq * 2 * t) * 0.25 +
-                        sin(2 * PI * freq * 3 * t) * 0.1
+                val env = (1 - exp(-t * 60)) * exp(-t * decayRate)   // attaque + déclin façonné
+                var s = 0.0
+                for (k in harm.indices) {
+                    if (harm[k] < 0.01) continue
+                    s += sin(2 * PI * freq * (k + 1) * t) * harm[k]
+                }
                 out[idx] += s * env * vol
             }
         }
@@ -216,8 +246,9 @@ class Creator {
                 val freq = root * 2.0.pow(octave + scale[degree] / 12.0)
                 if (rnd.nextInt(100) < 85) addNote(freq, start, noteDur * 0.95, 0.5)
             }
-            // basse sur les temps
-            if (k % 4 == 0) addNote(root / 2, start, noteDur * 3.0, 0.3)
+            // basse sur les temps, dosée par les graves de ta musique
+            val bassVol = tb?.let { 0.15 + (it[0] + it[1] + it[2]) / 3.0 * 0.35 } ?: 0.3
+            if (k % 4 == 0) addNote(root / 2, start, noteDur * 3.0, bassVol)
         }
 
         // normalisation

@@ -904,6 +904,7 @@ class MainActivity : Activity() {
             "\u2022 \uD83C\uDFB5 MUSIQUE : vraie synthèse — le texte choisit la gamme (majeure=joyeux, mineure=mélancolique, pentatonique=planant, orientale=mystérieux), le tempo et la mélodie. Sauvée en WAV.\n" +
             "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
+            "SONORITÉ DE TA MUSIQUE \uD83C\uDFB8 : l'IA mémorise l'empreinte spectrale (32 bandes) de chaque morceau appris. À la création, cette empreinte façonne les HARMONIQUES des notes, la hauteur, le tempo et l'attaque : scanne du rock \u2192 notes mordantes ; du piano doux \u2192 notes chaudes. Écris « rock » pour la sonorité rock précise, ou n'importe quoi pour la couleur générale de ta bibliothèque. (Rescanne ta musique une fois après cette mise à jour pour capturer les empreintes !)\n\n" +
             "NOURRI PAR SA MÉMOIRE : si ton texte contient un mot que l'IA connaît (« chat », « plage »...), l'image est peinte avec les VRAIES couleurs de tes photos apprises + une mosaïque fantôme du souvenir en fond. Et la mélodie CHANTE la pensée de l'IA : sa complétion de texte est convertie note par note (les voyelles durent plus longtemps !).\n\n" +
             "Idée : apprends 10 photos de coucher de soleil, puis écris « coucher de soleil » — compare l'image AVANT et APRÈS l'apprentissage. La différence, c'est sa mémoire !")
         tutoCard(Color.parseColor("#0891B2"), "\uD83D\uDCAC  Le Chat",
@@ -1316,7 +1317,15 @@ class MainActivity : Activity() {
         toast("Composition en cours...")
         Thread {
             val thought = if (codeBrain.size() > 0) codeBrain.complete(t.take(20), 90, 60) else ""
-            val pcm = creator.makeMusic(t, thought)
+            // Sonorité : timbres du sujet demandé, sinon la couleur générale de TA musique
+            val matched = audioBrain.matchTimbres(t)
+            val timbres = matched.ifEmpty { audioBrain.allTimbres().shuffled().take(6) }
+            val pcm = creator.makeMusic(t, thought, timbres)
+            val sono = when {
+                matched.isNotEmpty() -> " Sonorité de : ${matched.joinToString(", ") { it.first }}."
+                timbres.isNotEmpty() -> " Sonorité générale de ta musique."
+                else -> ""
+            }
             lastMusic = pcm
             var saved = ""
             try {
@@ -1327,7 +1336,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) { }
             runOnUiThread {
                 creator.play(pcm)
-                toast(if (thought.length > 8) "\uD83C\uDFB5 L'IA chante sa pensée !$saved" else "\uD83C\uDFB5 Ta musique !$saved")
+                toast(if (thought.length > 8) "\uD83C\uDFB5 L'IA chante sa pensée !$sono$saved" else "\uD83C\uDFB5 Ta musique !$sono$saved")
             }
         }.start()
     }

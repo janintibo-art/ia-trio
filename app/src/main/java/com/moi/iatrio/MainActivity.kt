@@ -911,7 +911,8 @@ class MainActivity : Activity() {
             "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
             "VRAIE COMPOSITION \uD83C\uDFBC : progressions d'accords (I-V-vi-IV...), structure AABA (couplet/pont/retour), rythmes variés avec syncopes, BATTERIE synthétisée (kick, caisse claire, charley — exportée sur le canal 10 MIDI !), écho de production. La CRÉATIVITÉ de ton profil pilote les syncopes, les ornements et l'audace mélodique : profil Précis = sage, profil Créatif = ça part en impro !\n\n" +
-            "RÉGLAGES \uD83C\uDF9A : choisis le TEMPO (auto ou 70-160 BPM) et la LONGUEUR (4 à 32 mesures) avant de générer. « Très long » en 70 BPM \u2248 2 minutes de musique !\n\n" +
+            "RÉGLAGES \uD83C\uDF9A : TEMPO (auto ou 70-160 BPM) et LONGUEUR jusqu'à MARATHON (128 mesures \u2248 6 minutes !). Sur les longs formats, les motifs se renouvellent toutes les 16 mesures pour ne jamais lasser, et le morceau garde son arc intro/pont/final. La génération d'un Marathon peut prendre 1-2 minutes : laisse l'app ouverte.\n\n" +
+            "GRANDE BIBLIOTHÈQUE \uD83D\uDCDA : avec 15 000 musiques, lance le scan complet et laisse tourner — jusqu'à 6000 sons appris par passage (300 000 fichiers visités), banque de remix portée à 2000 extraits réels. Tout est cumulatif : chaque scan enrichit la palette.\n\n" +
             "RÉCUPÉRER TES CRÉATIONS \uD83D\uDCE4 : le plus simple est le bouton PARTAGER — il envoie directement le .wav + .mid (ou le .png) vers WhatsApp, Drive, Gmail, ton PC... Le bouton \u25B6 Réécouter rejoue la dernière musique. Les fichiers apparaissent aussi maintenant instantanément dans tes applis Fichiers et Musique (scan média automatique).\n\n" +
             "OÙ SONT MES FICHIERS ? Après chaque génération, le statut affiche les noms exacts : musique_XXXX.wav (l'audio) et musique_XXXX.mid (la partition MIDI), dans Download/IATrio/creations/. Ouvre ton gestionnaire de fichiers \u2192 Téléchargements \u2192 IATrio \u2192 creations. Si le statut affiche \u26A0, autorise « Accès à tous les fichiers » (onglet IA, bouton TOUT scanner) puis regénère.\n\n" +
             "EXPORT MIDI \uD83C\uDFB9 : chaque composition est aussi sauvée en .mid (mélodie canal 1, basse canal 2, tempo inclus) — ouvre-le dans FL Studio, Ableton, GarageBand ou MuseScore pour changer les instruments, corriger des notes, ajouter des pistes. L'IA compose, TU produis !\n\n" +
@@ -1277,7 +1278,8 @@ class MainActivity : Activity() {
             listOf("Tempo auto", "70 BPM (lent)", "85 BPM", "100 BPM", "120 BPM", "140 BPM", "160 BPM (rapide)"))
         createLen = Spinner(this)
         createLen.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            listOf("Court (4 mes.)", "Normal (8 mes.)", "Long (16 mes.)", "Très long (32 mes.)"))
+            listOf("Court (4 mes.)", "Normal (8 mes.)", "Long (16 mes.)", "Très long (32 mes.)",
+                "Épique (64 mes. \u2248 3 min)", "Marathon (128 mes. \u2248 6 min)"))
         createLen.setSelection(1)
         cc.addView(rowEqual(createTempo, createLen), lp(6))
         cc.addView(rowEqual(
@@ -1390,7 +1392,7 @@ class MainActivity : Activity() {
             val sono: String
             if (clips.size >= 3) {
                 val bpmSel = listOf(0, 70, 85, 100, 120, 140, 160)[createTempo.selectedItemPosition.coerceIn(0, 6)]
-                val barsSel = listOf(4, 8, 16, 32)[createLen.selectedItemPosition.coerceIn(0, 3)]
+                val barsSel = listOf(4, 8, 16, 32, 64, 128)[createLen.selectedItemPosition.coerceIn(0, 5)]
                 val gPos = createGenre.selectedItemPosition
                 val gName = if (gPos <= 0) "auto" else MusicStyles.all[(gPos - 1).coerceIn(0, MusicStyles.all.size - 1)].name
                 pcm = creator.makeRemix(t, clips, profile.creativity, thought, bpmSel, barsSel, gName)
@@ -1400,7 +1402,7 @@ class MainActivity : Activity() {
                 val matched = audioBrain.matchTimbres(t)
                 val timbres = matched.ifEmpty { audioBrain.allTimbres().shuffled().take(6) }
                 val bpmSel2 = listOf(0, 70, 85, 100, 120, 140, 160)[createTempo.selectedItemPosition.coerceIn(0, 6)]
-                val barsSel2 = listOf(4, 8, 16, 32)[createLen.selectedItemPosition.coerceIn(0, 3)]
+                val barsSel2 = listOf(4, 8, 16, 32, 64, 128)[createLen.selectedItemPosition.coerceIn(0, 5)].coerceAtMost(64)
                 pcm = creator.makeMusic(t, thought, timbres, profile.creativity, bpmSel2, barsSel2)
                 sono = if (timbres.isNotEmpty()) " Sonorité de ta musique (scanne tes morceaux pour un vrai remix !)"
                        else " (Scanne ta musique pour que je remixe TES morceaux !)"

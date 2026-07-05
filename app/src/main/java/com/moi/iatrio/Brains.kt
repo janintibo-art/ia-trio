@@ -299,9 +299,9 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
                 }
                 f.writeBytes(bytes)
             }
-            // plafond : 400 extraits, on supprime les plus vieux
+            // plafond : 2000 extraits (~32 Mo), on supprime les plus vieux
             val all = clipDir.listFiles()?.sortedBy { it.lastModified() } ?: return
-            if (all.size > 400) all.take(all.size - 400).forEach { it.delete() }
+            if (all.size > 2000) all.take(all.size - 2000).forEach { it.delete() }
         } catch (e: Exception) { }
     }
 
@@ -312,11 +312,11 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
             val l = f.name.substringBefore("__").lowercase()
             words.any { w -> l.contains(w) || w.contains(l) }
         } ?: emptyList()
-        return files.shuffled().take(24).mapNotNull { loadClip(it) }
+        return files.shuffled().take(32).mapNotNull { loadClip(it) }
     }
 
     /** N'importe quels extraits de ta bibliothèque (mélange). */
-    fun anyClips(max: Int = 24): List<ShortArray> =
+    fun anyClips(max: Int = 32): List<ShortArray> =
         (clipDir.listFiles()?.toList() ?: emptyList()).shuffled().take(max).mapNotNull { loadClip(it) }
 
     fun clipCount(): Int = clipDir.listFiles()?.size ?: 0

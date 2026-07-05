@@ -638,11 +638,13 @@ class Creator {
                   else style.bpmLo + rnd.nextInt(style.bpmHi - style.bpmLo + 1)
         val slotsPerBar = style.steps                 // 16, ou 18 pour les mesures impaires (9/8 balkan !)
         val slotDur = 60.0 / bpm / 4.0
-        val bars = barsCount.coerceIn(4, 64)
+        val bars = barsCount.coerceIn(4, 256)
         val n = (srate * slotDur * bars * slotsPerBar).toInt() + srate * 2
-        val mainL = DoubleArray(n); val mainR = DoubleArray(n)
-        val sideL = DoubleArray(n); val sideR = DoubleArray(n)
-        val duck = DoubleArray(n) { 1.0 }
+        // Float (4 octets) au lieu de Double : 2x moins de RAM — indispensable
+        // pour les formats Marathon (128 mesures ~ 6 minutes)
+        val mainL = FloatArray(n); val mainR = FloatArray(n)
+        val sideL = FloatArray(n); val sideR = FloatArray(n)
+        val duck = FloatArray(n) { 1f }
         val events = ArrayList<NoteEvent>()
 
         // ===== RÔLES =====
@@ -720,9 +722,9 @@ class Creator {
                 s *= vol
                 if (i < fade) s *= i.toDouble() / fade
                 if (i > len - fade) s *= (len - i).toDouble() / fade
-                dl[idx] += s * (1.0 - pan)
+                dl[idx] += (s * (1.0 - pan)).toFloat()
                 val ridx = idx + hOff
-                if (ridx < n) dr[ridx] += s * pan
+                if (ridx < n) dr[ridx] += (s * pan).toFloat()
             }
         }
 
@@ -730,7 +732,7 @@ class Creator {
             val len = (srate * 0.22).toInt()
             for (i in 0 until len) {
                 val idx = start + i; if (idx >= n) break
-                val g = 0.35 + 0.65 * (i.toDouble() / len)
+                val g = (0.35 + 0.65 * (i.toDouble() / len)).toFloat()
                 if (g < duck[idx]) duck[idx] = g
             }
         }
@@ -757,8 +759,8 @@ class Creator {
             }
             return out
         }
-        val patternA = composePattern(style.chops.first())
-        val patternB = composePattern(style.chops.last())
+        var patternA = composePattern(style.chops.first())
+        var patternB = composePattern(style.chops.last())
 
         val drumVol = 0.42 * style.drumBoost
         val swingAmt = (style.swing + creativity * 0.0006).coerceAtMost(0.22)
@@ -767,6 +769,10 @@ class Creator {
 
         // ===== ARRANGEMENT =====
         for (bar in 0 until bars) {
+            if (bar > 0 && bar % 16 == 0) {   // longs formats : le motif se renouvelle
+                patternA = composePattern(style.chops.first())
+                patternB = composePattern(style.chops.last())
+            }
             val q = bar * 4 / bars
             val intro = bar == 0 || (bars >= 16 && bar == 1)
             val outro = bar == bars - 1
@@ -841,19 +847,26 @@ class Creator {
         // ===== MIX =====
         val delay = (slotDur * 3 * srate).toInt()          // écho croche pointée
         for (i in delay until n) {
-            sideL[i] += sideR[i - delay] * 0.13
-            sideR[i] += sideL[i - delay] * 0.13
+            sideL[i] += sideR[i - delay] * 0.13f
+            sideR[i] += sideL[i - delay] * 0.13f
         }
         val fadeStart = endStart
-        val outL = DoubleArray(n); val outR = DoubleArray(n)
-        var mx = 1e-9
-        for (i in 0 until n) {
+        // Mastering en deux passes, sans tableau supplémentaire (économie de RAM)
+        fun mL(i: Int): Double {
             var g = 1.0
             if (i > fadeStart) g = (1.0 - (i - fadeStart).toDouble() / (n - fadeStart)).coerceAtLeast(0.0)
-            outL[i] = kotlin.math.tanh((mainL[i] + sideL[i] * duck[i]) * 1.1) * g
-            outR[i] = kotlin.math.tanh((mainR[i] + sideR[i] * duck[i]) * 1.1) * g
-            if (kotlin.math.abs(outL[i]) > mx) mx = kotlin.math.abs(outL[i])
-            if (kotlin.math.abs(outR[i]) > mx) mx = kotlin.math.abs(outR[i])
+            return kotlin.math.tanh((mainL[i] + sideL[i] * duck[i]) * 1.1) * g
+        }
+        fun mR(i: Int): Double {
+            var g = 1.0
+            if (i > fadeStart) g = (1.0 - (i - fadeStart).toDouble() / (n - fadeStart)).coerceAtLeast(0.0)
+            return kotlin.math.tanh((mainR[i] + sideR[i] * duck[i]) * 1.1) * g
+        }
+        var mx = 1e-9
+        for (i in 0 until n) {
+            val l = kotlin.math.abs(mL(i)); val r = kotlin.math.abs(mR(i))
+            if (l > mx) mx = l
+            if (r > mx) mx = r
         }
         lastEvents = events
         lastBpm = bpm
@@ -861,8 +874,8 @@ class Creator {
         lastStyle = style.name
         val pcm = ShortArray(n * 2)
         for (i in 0 until n) {
-            pcm[i * 2] = ((outL[i] / mx) * 29000).toInt().toShort()
-            pcm[i * 2 + 1] = ((outR[i] / mx) * 29000).toInt().toShort()
+            pcm[i * 2] = ((mL(i) / mx) * 29000).toInt().toShort()
+            pcm[i * 2 + 1] = ((mR(i) / mx) * 29000).toInt().toShort()
         }
         return pcm
     }
@@ -923,21 +936,36 @@ class Creator {
         }
     }
 
+    @Volatile private var playing = false
+
     fun play(pcm: ShortArray) {
         stop()
         try {
+            val minBuf = AudioTrack.getMinBufferSize(lastRate,
+                AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
             @Suppress("DEPRECATION")
             val t = AudioTrack(AudioManager.STREAM_MUSIC, lastRate,
                 AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT,
-                pcm.size * 2, AudioTrack.MODE_STATIC)
-            t.write(pcm, 0, pcm.size)
-            t.play()
+                maxOf(minBuf * 4, 65536), AudioTrack.MODE_STREAM)
             track = t
+            playing = true
+            t.play()
+            // Streaming : on pousse le son par blocs — fonctionne quelle que
+            // soit la durée du morceau (l'ancien mode plantait au-delà de ~1 min)
+            Thread {
+                var off = 0
+                while (playing && off < pcm.size) {
+                    val w = try { t.write(pcm, off, minOf(32768, pcm.size - off)) } catch (e: Exception) { -1 }
+                    if (w <= 0) break
+                    off += w
+                }
+            }.start()
         } catch (e: Exception) { }
     }
 
     fun stop() {
-        try { track?.stop(); track?.release() } catch (e: Exception) { }
+        playing = false
+        try { track?.pause(); track?.flush(); track?.stop(); track?.release() } catch (e: Exception) { }
         track = null
     }
 

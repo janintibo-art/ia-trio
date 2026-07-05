@@ -1,35 +1,39 @@
-# Nouveautés v34 — Les marges 🤘 (7 genres de plus)
+# Nouveautés v35 — Marathon & grande bibliothèque 🏃📚
 
-De la teuf au clavecin : 19 genres au total, dont des raretés.
+## Des morceaux de plus de 5 minutes
+- **Nouveaux formats** : Épique (64 mesures ≈ 3 min) et **Marathon
+  (128 mesures ≈ 6 min)** — le remix tient la distance : les motifs se
+  RENOUVELLENT toutes les 16 mesures (jamais lassant), l'arc
+  intro/pont/final s'étire proportionnellement, l'harmonie continue de
+  tourner.
+- **Ingénierie mémoire** pour y arriver :
+  - buffers audio en Float (2× moins de RAM que Double) ;
+  - mastering en deux passes SANS tableaux intermédiaires ;
+  - grande mémoire Android activée (largeHeap) ;
+  - **lecture en streaming** par blocs — l'ancien mode statique plantait
+    au-delà d'une minute, celui-ci joue n'importe quelle durée.
+- Un Marathon se génère en ~1-2 minutes sur téléphone : laisse l'app
+  ouverte, le toast et le statut arrivent à la fin. Le WAV fait ~22 Mo,
+  le MIDI reste minuscule. (Le synthé de repli reste limité à 64 mesures.)
 
-- **Breakcore** 190-220 BPM : kicks et caisses éclatés façon amen break
-  haché, charleys saturés en doubles-croches, chops ultra-denses.
-- **Hardtek / tribe** 175-190 : kick martelé four-on-the-floor, et LA
-  signature du genre : la basse roulante à CONTRETEMPS (emplacements
-  2-6-10-14) + stabs offbeat.
-- **Punk** 160-190 : d-beat (le pattern Discharge), charley appuyé,
-  énergie maximale (boost batterie 1.35).
-- **Oi!** 115-135 : street-punk martelé mi-tempo, carré, chantable.
-- **Balkan** 105-130 : LA nouveauté technique — véritable MESURE IMPAIRE :
-  grille de 18 pas = 9/8 découpé en 2+2+2+3 comme le čoček des fanfares
-  tziganes. Accents de kick sur les têtes de groupes, stabs cuivrés à
-  contretemps. (La grille est maintenant à longueur variable par genre.)
-- **Classique** 72-100 et **Baroque** 92-115 : SANS batterie (boost 0) —
-  le remix devient musique de chambre : nappe, mélodie, et pour le baroque
-  la basse CONTINUE (4 appuis par mesure) sous des arpèges moto perpetuo
-  en doubles-croches, façon clavecin.
-- Mots-clés reconnus : « teuf », « tribe », « d-beat », « fanfare »,
-  « tzigane », « čoček », « bach », « clavecin », « vivaldi »...
-- Le sélecteur de genre liste automatiquement les 19 styles avec leurs BPM.
+## Pensé pour tes 15 000 musiques
+- **Scan complet : 6000 sons par passage** (au lieu de 3000) et jusqu'à
+  **300 000 fichiers visités** ; scan de dossier : 2000 sons.
+- **Banque de remix : 2000 extraits réels** (au lieu de 400, ~32 Mo) —
+  ta discothèque devient une palette géante, et chaque remix pioche
+  parmi 32 extraits.
+- Rappel : les scans sont CUMULATIFS (Stop quand tu veux, reprends plus
+  tard) et un passage sur 6000 musiques prend du temps (~1-2 s par
+  fichier) — parfait pendant une charge de nuit. 🔌🌙
 
-# v33 — Genres  # v32 — Groove  # v31 — Arrangement  # v30-v2
+# v34 — Les marges  # v33 — Genres  # v32 — Groove  # v31-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v34.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v35.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v34 genres marginaux"
+git commit -m "v35 marathon grande bibliotheque"
 git push
 ```

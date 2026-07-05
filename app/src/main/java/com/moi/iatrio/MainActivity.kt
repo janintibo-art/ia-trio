@@ -904,6 +904,7 @@ class MainActivity : Activity() {
             "\u2022 \uD83C\uDFB5 MUSIQUE : vraie synthèse — le texte choisit la gamme (majeure=joyeux, mineure=mélancolique, pentatonique=planant, orientale=mystérieux), le tempo et la mélodie. Sauvée en WAV.\n" +
             "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
+            "EXPORT MIDI \uD83C\uDFB9 : chaque composition est aussi sauvée en .mid (mélodie canal 1, basse canal 2, tempo inclus) — ouvre-le dans FL Studio, Ableton, GarageBand ou MuseScore pour changer les instruments, corriger des notes, ajouter des pistes. L'IA compose, TU produis !\n\n" +
             "SONORITÉ DE TA MUSIQUE \uD83C\uDFB8 : l'IA mémorise l'empreinte spectrale (32 bandes) de chaque morceau appris. À la création, cette empreinte façonne les HARMONIQUES des notes, la hauteur, le tempo et l'attaque : scanne du rock \u2192 notes mordantes ; du piano doux \u2192 notes chaudes. Écris « rock » pour la sonorité rock précise, ou n'importe quoi pour la couleur générale de ta bibliothèque. (Rescanne ta musique une fois après cette mise à jour pour capturer les empreintes !)\n\n" +
             "NOURRI PAR SA MÉMOIRE : si ton texte contient un mot que l'IA connaît (« chat », « plage »...), l'image est peinte avec les VRAIES couleurs de tes photos apprises + une mosaïque fantôme du souvenir en fond. Et la mélodie CHANTE la pensée de l'IA : sa complétion de texte est convertie note par note (les voyelles durent plus longtemps !).\n\n" +
             "Idée : apprends 10 photos de coucher de soleil, puis écris « coucher de soleil » — compare l'image AVANT et APRÈS l'apprentissage. La différence, c'est sa mémoire !")
@@ -1330,8 +1331,10 @@ class MainActivity : Activity() {
             var saved = ""
             try {
                 creationsDir()?.let { d ->
-                    creator.saveWav(pcm, File(d, "musique_${stamp()}.wav"))
-                    saved = " WAV dans Download/IATrio/creations/"
+                    val base = "musique_${stamp()}"
+                    creator.saveWav(pcm, File(d, "$base.wav"))
+                    creator.saveMidi(File(d, "$base.mid"))
+                    saved = " WAV + MIDI dans Download/IATrio/creations/"
                 }
             } catch (e: Exception) { }
             runOnUiThread {

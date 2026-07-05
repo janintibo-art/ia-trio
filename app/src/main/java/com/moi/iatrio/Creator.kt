@@ -10,10 +10,14 @@ import android.graphics.Shader
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.pow
+import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -149,6 +153,10 @@ class Creator {
     }
 
     // ==================== MUSIQUE ====================
+    data class NoteEvent(val midi: Int, val startSec: Double, val durSec: Double, val vel: Int, val ch: Int)
+    var lastEvents: List<NoteEvent> = emptyList()   // la partition de la dernière composition
+    var lastBpm = 100
+
     private var track: AudioTrack? = null
     private val rate = 22050
 
@@ -201,7 +209,11 @@ class Creator {
         val total = (rate * noteDur * nNotes).toInt() + rate / 2
         val out = DoubleArray(total)
 
-        fun addNote(freq: Double, start: Int, durS: Double, vol: Double) {
+        val events = ArrayList<NoteEvent>()
+        fun addNote(freq: Double, start: Int, durS: Double, vol: Double, ch: Int = 0) {
+            // partition : note MIDI la plus proche de la fréquence
+            val midi = (69 + 12 * ln(freq / 440.0) / ln(2.0)).roundToInt().coerceIn(0, 127)
+            events.add(NoteEvent(midi, start.toDouble() / rate, durS, (vol * 220).toInt().coerceIn(30, 120), ch))
             val n = (rate * durS).toInt()
             for (i in 0 until n) {
                 val idx = start + i
@@ -248,13 +260,71 @@ class Creator {
             }
             // basse sur les temps, dosée par les graves de ta musique
             val bassVol = tb?.let { 0.15 + (it[0] + it[1] + it[2]) / 3.0 * 0.35 } ?: 0.3
-            if (k % 4 == 0) addNote(root / 2, start, noteDur * 3.0, bassVol)
+            if (k % 4 == 0) addNote(root / 2, start, noteDur * 3.0, bassVol, ch = 1)
         }
 
-        // normalisation
+        // normalisation + partition disponible pour l'export MIDI
+        lastEvents = events
+        lastBpm = bpm
         var mx = 1e-9
         for (v in out) if (kotlin.math.abs(v) > mx) mx = kotlin.math.abs(v)
         return ShortArray(total) { ((out[it] / mx) * 30000).toInt().toShort() }
+    }
+
+    // ==================== EXPORT MIDI ====================
+    /**
+     * Écrit un fichier MIDI standard (format 0) de la dernière composition :
+     * mélodie sur le canal 1 (piano), basse sur le canal 2, tempo inclus.
+     * Ouvrable dans FL Studio, Ableton, GarageBand, MuseScore...
+     */
+    fun saveMidi(file: File) {
+        if (lastEvents.isEmpty()) return
+        val tpq = 480
+        val bpm = lastBpm
+
+        fun varint(value: Int): ByteArray {
+            var v = value.coerceAtLeast(0)
+            val stack = ArrayList<Int>()
+            stack.add(v and 0x7F)
+            v = v shr 7
+            while (v > 0) { stack.add((v and 0x7F) or 0x80); v = v shr 7 }
+            return ByteArray(stack.size) { stack[stack.size - 1 - it].toByte() }
+        }
+
+        class Ev(val tick: Int, val order: Int, val bytes: ByteArray)
+        val evs = ArrayList<Ev>()
+        evs.add(Ev(0, 0, byteArrayOf(0xC0.toByte(), 0)))              // canal 1 : piano
+        evs.add(Ev(0, 0, byteArrayOf(0xC1.toByte(), 33)))             // canal 2 : basse
+        for (e in lastEvents) {
+            val on = (e.startSec * bpm / 60.0 * tpq).toInt()
+            val off = on + max(1, (e.durSec * bpm / 60.0 * tpq).toInt())
+            evs.add(Ev(on, 1, byteArrayOf((0x90 or e.ch).toByte(), e.midi.toByte(), e.vel.toByte())))
+            evs.add(Ev(off, 2, byteArrayOf((0x80 or e.ch).toByte(), e.midi.toByte(), 0)))
+        }
+        evs.sortWith(compareBy({ it.tick }, { it.order }))
+
+        val body = ByteArrayOutputStream()
+        // tempo (microsecondes par noire)
+        val mpq = 60_000_000 / bpm
+        body.write(varint(0))
+        body.write(byteArrayOf(0xFF.toByte(), 0x51, 3,
+            (mpq shr 16 and 0xFF).toByte(), (mpq shr 8 and 0xFF).toByte(), (mpq and 0xFF).toByte()))
+        var last = 0
+        for (e in evs) {
+            body.write(varint(e.tick - last)); last = e.tick
+            body.write(e.bytes)
+        }
+        body.write(varint(0))
+        body.write(byteArrayOf(0xFF.toByte(), 0x2F, 0))               // fin de piste
+
+        file.outputStream().use { o ->
+            fun be16(v: Int) = o.write(byteArrayOf((v shr 8).toByte(), (v and 0xFF).toByte()))
+            fun be32(v: Int) = o.write(byteArrayOf((v shr 24).toByte(), (v shr 16 and 0xFF).toByte(),
+                (v shr 8 and 0xFF).toByte(), (v and 0xFF).toByte()))
+            o.write("MThd".toByteArray()); be32(6); be16(0); be16(1); be16(tpq)
+            val b = body.toByteArray()
+            o.write("MTrk".toByteArray()); be32(b.size); o.write(b)
+        }
     }
 
     fun play(pcm: ShortArray) {

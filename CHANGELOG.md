@@ -1,37 +1,35 @@
-# Nouveautés v24 — La sonorité de TA musique 🎸
+# Nouveautés v25 — Export MIDI 🎹
 
-La musique générée sonne maintenant comme la tienne.
+Chaque composition est maintenant récupérable en fichier MIDI standard pour
+la retravailler dans n'importe quel logiciel de musique.
 
-- **Mémoire des timbres** : à chaque son/musique appris, l'IA mémorise son
-  empreinte spectrale (32 bandes de fréquences), moyennée par étiquette
-  (fichier timbre_aud.txt). Tes dossiers rock/, jazz/, piano/... deviennent
-  des palettes sonores.
-- **Synthèse façonnée par tes morceaux** : l'empreinte contrôle
-  - les **harmoniques** de chaque note (synthèse additive 8 harmoniques) :
-    musique brillante → notes cristallines, musique grave → notes chaudes ;
-  - la **hauteur** de base (centre spectral : brillant = plus aigu) ;
-  - le **tempo** (musique énergique dans les aigus = plus rapide) ;
-  - l'**attaque/déclin** (brillant = percussif, sombre = nappes) ;
-  - le **volume de la basse** (dosé sur les graves de ta bibliothèque).
-- **Ciblage intelligent** : écris « rock » → sonorité exacte de ton dossier
-  rock ; texte sans correspondance → mélange de la couleur générale de ta
-  bibliothèque (6 empreintes au hasard). Le toast t'indique la sonorité
-  utilisée.
-- La mélodie continue de « chanter la pensée » de l'IA (v22) — maintenant
-  avec TON grain sonore.
+- **Fichier .mid généré à chaque création** (à côté du .wav, dans
+  Download/IATrio/creations/) : format MIDI standard (SMF format 0).
+- **Contenu de la partition** :
+  - **Mélodie sur le canal 1** (piano) — toutes les notes que l'IA chante,
+    avec leurs vraies durées (les voyelles longues !) et vélocités.
+  - **Basse sur le canal 2** (basse électrique), dosée par tes graves.
+  - **Tempo inclus** — celui dérivé de la sonorité de ta musique.
+- **Compatible partout** : FL Studio, Ableton, GarageBand, Cubase, MuseScore,
+  LMMS (gratuit sur PC)... Change les instruments, corrige des notes, ajoute
+  des pistes, quantise : l'IA compose, TU produis.
+- Techniquement : la synthèse capture désormais chaque note comme un
+  événement (hauteur MIDI la plus proche, départ, durée, vélocité, canal),
+  et l'app écrit le binaire MIDI complet (delta-times varint, meta tempo,
+  program changes) — zéro dépendance externe.
 
-⚠ Important : les empreintes se capturent À L'APPRENTISSAGE. Rescanne ton
-dossier musique une fois après cette mise à jour (les plafonds sont à 1000/
-3000 sons depuis la v22, ça passe large).
+Astuce : le .wav te donne le rendu avec la SONORITÉ de ta musique (v24),
+le .mid te donne la PARTITION pour la réinterpréter — les deux ensemble,
+c'est un vrai brouillon de morceau.
 
-# v23 — Performances  # v22 — Créations & mémoire  # v21-v2 — Fondations
+# v24 — Sonorités  # v23 — Performances  # v22-v2 — Fondations
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v24.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v25.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v24 sonorites de ma musique"
+git commit -m "v25 export midi"
 git push
 ```

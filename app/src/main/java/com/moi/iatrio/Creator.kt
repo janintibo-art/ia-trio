@@ -169,7 +169,9 @@ class Creator {
         prompt: String,
         thought: String = "",
         timbres: List<Pair<String, DoubleArray>> = emptyList(),
-        creativity: Int = 50
+        creativity: Int = 50,
+        bpmOverride: Int = 0,      // 0 = automatique
+        barsCount: Int = 8
     ): ShortArray {
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
@@ -203,11 +205,12 @@ class Creator {
 
         val rootMul = (0.7 + centroid / 16.0).coerceIn(0.7, 2.0)
         val root = 220.0 * 2.0.pow(rnd.nextInt(8) / 12.0) * rootMul
-        val bpm = (84 + rnd.nextInt(56) + ((centroid - 10) * 3).toInt()).coerceIn(70, 160)
+        val bpm = if (bpmOverride > 0) bpmOverride
+                  else (84 + rnd.nextInt(56) + ((centroid - 10) * 3).toInt()).coerceIn(70, 160)
         val drumVol = tb?.let { 0.25 + (it[20] + it[25] + it[30]) / 3.0 * 0.5 } ?: 0.4
         val bright = (0.6 + centroid / 20.0)
 
-        val bars = 8
+        val bars = barsCount.coerceIn(2, 64)
         val slotsPerBar = 8
         val slotDur = 60.0 / bpm / 2.0
         val n = (rate * slotDur * bars * slotsPerBar).toInt() + (rate * 2.5).toInt()
@@ -328,7 +331,7 @@ class Creator {
         var slotGlobal = 0
 
         for (bar in 0 until bars) {
-            val sectionB = bar in 4..5
+            val sectionB = (bar * 4 / bars) == 2
             val chordDeg = prog[bar % prog.size]
             val chordTones = setOf(chordDeg % ns, (chordDeg + 2) % ns, (chordDeg + 4) % ns)
             val spice = creativity + (if (sectionB) 25 else 0)
@@ -453,14 +456,16 @@ class Creator {
         prompt: String,
         clips: List<ShortArray>,
         creativity: Int = 50,
-        thought: String = ""
+        thought: String = "",
+        bpmOverride: Int = 0,      // 0 = automatique
+        barsCount: Int = 8
     ): ShortArray {
         val srate = 16000
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
-        val bpm = 88 + rnd.nextInt(48)
+        val bpm = if (bpmOverride > 0) bpmOverride else 88 + rnd.nextInt(48)
         val slotDur = 60.0 / bpm / 2.0
-        val bars = 8
+        val bars = barsCount.coerceIn(2, 64)
         val slotsPerBar = 8
         val n = (srate * slotDur * bars * slotsPerBar).toInt() + srate * 2
         val outL = DoubleArray(n); val outR = DoubleArray(n)
@@ -514,7 +519,7 @@ class Creator {
                         else listOf(0, 2, -2, 5, 7, -5, 3, 0)
 
         for (bar in 0 until bars) {
-            val sectionB = bar in 4..5
+            val sectionB = (bar * 4 / bars) == 2
             val spice = creativity + (if (sectionB) 25 else 0)
             val pattern = if (rnd.nextInt(100) < spice) spicy[rnd.nextInt(spicy.size)]
                           else calm[rnd.nextInt(calm.size)]

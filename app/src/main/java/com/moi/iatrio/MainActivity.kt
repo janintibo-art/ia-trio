@@ -78,6 +78,9 @@ class MainActivity : Activity() {
     private lateinit var createImg: ImageView
     private lateinit var createOut: TextView
     private var lastMusic: ShortArray? = null
+    private lateinit var createTempo: Spinner
+    private lateinit var createLen: Spinner
+    private lateinit var createStatus: TextView
     private lateinit var chatBox: LinearLayout
     private lateinit var chatInput: EditText
     private lateinit var chatSource: Spinner
@@ -905,6 +908,8 @@ class MainActivity : Activity() {
             "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
             "VRAIE COMPOSITION \uD83C\uDFBC : progressions d'accords (I-V-vi-IV...), structure AABA (couplet/pont/retour), rythmes variés avec syncopes, BATTERIE synthétisée (kick, caisse claire, charley — exportée sur le canal 10 MIDI !), écho de production. La CRÉATIVITÉ de ton profil pilote les syncopes, les ornements et l'audace mélodique : profil Précis = sage, profil Créatif = ça part en impro !\n\n" +
+            "RÉGLAGES \uD83C\uDF9A : choisis le TEMPO (auto ou 70-160 BPM) et la LONGUEUR (4 à 32 mesures) avant de générer. « Très long » en 70 BPM \u2248 2 minutes de musique !\n\n" +
+            "OÙ SONT MES FICHIERS ? Après chaque génération, le statut affiche les noms exacts : musique_XXXX.wav (l'audio) et musique_XXXX.mid (la partition MIDI), dans Download/IATrio/creations/. Ouvre ton gestionnaire de fichiers \u2192 Téléchargements \u2192 IATrio \u2192 creations. Si le statut affiche \u26A0, autorise « Accès à tous les fichiers » (onglet IA, bouton TOUT scanner) puis regénère.\n\n" +
             "EXPORT MIDI \uD83C\uDFB9 : chaque composition est aussi sauvée en .mid (mélodie canal 1, basse canal 2, tempo inclus) — ouvre-le dans FL Studio, Ableton, GarageBand ou MuseScore pour changer les instruments, corriger des notes, ajouter des pistes. L'IA compose, TU produis !\n\n" +
             "REMIX DE TES VRAIS MORCEAUX \uD83C\uDF9B : l'IA garde les meilleurs extraits AUDIO RÉELS de chaque musique apprise (banque jusqu'à 400 extraits). À la création, elle les découpe et les réarrange façon sampler MPC : chops rythmiques pitchés, nappe de fond (ton morceau ralenti), basse (ton son à l'octave grave), inversions si créativité haute. RIEN n'est synthétisé : chaque son vient de TES fichiers. Écris « rock » pour remixer ton dossier rock. Rescanne ta musique une fois pour remplir la banque !\n\n" +
             "SONORITÉ DE TA MUSIQUE \uD83C\uDFB8 : l'IA mémorise l'empreinte spectrale (32 bandes) de chaque morceau appris. À la création, cette empreinte façonne les HARMONIQUES des notes, la hauteur, le tempo et l'attaque : scanne du rock \u2192 notes mordantes ; du piano doux \u2192 notes chaudes. Écris « rock » pour la sonorité rock précise, ou n'importe quoi pour la couleur générale de ta bibliothèque. (Rescanne ta musique une fois après cette mise à jour pour capturer les empreintes !)\n\n" +
@@ -1254,6 +1259,15 @@ class MainActivity : Activity() {
         })
         createPrompt = field("Ex : coucher de soleil punk sur l'océan")
         cc.addView(createPrompt)
+        cc.addView(body("Tempo et longueur du morceau :"), lp(10))
+        createTempo = Spinner(this)
+        createTempo.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            listOf("Tempo auto", "70 BPM (lent)", "85 BPM", "100 BPM", "120 BPM", "140 BPM", "160 BPM (rapide)"))
+        createLen = Spinner(this)
+        createLen.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            listOf("Court (4 mes.)", "Normal (8 mes.)", "Long (16 mes.)", "Très long (32 mes.)"))
+        createLen.setSelection(1)
+        cc.addView(rowEqual(createTempo, createLen), lp(6))
         cc.addView(rowEqual(
             pill("\uD83D\uDDBC Image", Color.parseColor("#D946EF"), Color.parseColor("#A21CAF")) { doCreateImage() },
             pill("\uD83C\uDFB5 Musique", Color.parseColor("#D946EF"), Color.parseColor("#A21CAF")) { doCreateMusic() },
@@ -1262,6 +1276,8 @@ class MainActivity : Activity() {
         cc.addView(rowEqual(
             ghost("\u23F9 Stop musique") { creator.stop() }
         ), lp(8))
+        createStatus = status()
+        cc.addView(createStatus)
         createImg = ImageView(this).apply {
             adjustViewBounds = true
             visibility = View.GONE
@@ -1325,29 +1341,37 @@ class MainActivity : Activity() {
             val pcm: ShortArray
             val sono: String
             if (clips.size >= 3) {
-                pcm = creator.makeRemix(t, clips, profile.creativity, thought)
+                val bpmSel = listOf(0, 70, 85, 100, 120, 140, 160)[createTempo.selectedItemPosition.coerceIn(0, 6)]
+                val barsSel = listOf(4, 8, 16, 32)[createLen.selectedItemPosition.coerceIn(0, 3)]
+                pcm = creator.makeRemix(t, clips, profile.creativity, thought, bpmSel, barsSel)
                 sono = " REMIX de tes morceaux (${clips.size} extraits réels, ${audioBrain.clipCount()} en banque) !"
             } else {
                 // Repli : synthé façonné par les timbres (si banque vide)
                 val matched = audioBrain.matchTimbres(t)
                 val timbres = matched.ifEmpty { audioBrain.allTimbres().shuffled().take(6) }
-                pcm = creator.makeMusic(t, thought, timbres, profile.creativity)
+                val bpmSel2 = listOf(0, 70, 85, 100, 120, 140, 160)[createTempo.selectedItemPosition.coerceIn(0, 6)]
+                val barsSel2 = listOf(4, 8, 16, 32)[createLen.selectedItemPosition.coerceIn(0, 3)]
+                pcm = creator.makeMusic(t, thought, timbres, profile.creativity, bpmSel2, barsSel2)
                 sono = if (timbres.isNotEmpty()) " Sonorité de ta musique (scanne tes morceaux pour un vrai remix !)"
                        else " (Scanne ta musique pour que je remixe TES morceaux !)"
             }
             lastMusic = pcm
-            var saved = ""
+            val base = "musique_${stamp()}"
+            var savedOk = false
             try {
                 creationsDir()?.let { d ->
-                    val base = "musique_${stamp()}"
                     creator.saveWav(pcm, File(d, "$base.wav"))
                     creator.saveMidi(File(d, "$base.mid"))
-                    saved = " WAV + MIDI dans Download/IATrio/creations/"
+                    savedOk = true
                 }
             } catch (e: Exception) { }
             runOnUiThread {
                 creator.play(pcm)
-                toast("\uD83C\uDFB5$sono$saved")
+                createStatus.text = if (savedOk)
+                    "\uD83D\uDCBE $base.wav (audio) + $base.mid (partition MIDI)\n\uD83D\uDCC2 Download/IATrio/creations/"
+                else
+                    "\u26A0 Fichiers NON sauvegardés : autorise « Accès à tous les fichiers » (onglet IA \u2192 bouton TOUT scanner), puis regénère."
+                toast("\uD83C\uDFB5$sono")
             }
         }.start()
     }

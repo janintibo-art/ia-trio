@@ -882,7 +882,8 @@ class MainActivity : Activity() {
             "\u2022 \uD83C\uDFB5 MUSIQUE : vraie synthèse — le texte choisit la gamme (majeure=joyeux, mineure=mélancolique, pentatonique=planant, orientale=mystérieux), le tempo et la mélodie. Sauvée en WAV.\n" +
             "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
-            "Idée : crée la musique ET l'image du même texte — elles partagent la même âme. Puis fais-la écouter à ton IA sons pour qu'elle apprenne tes propres créations !")
+            "NOURRI PAR SA MÉMOIRE : si ton texte contient un mot que l'IA connaît (« chat », « plage »...), l'image est peinte avec les VRAIES couleurs de tes photos apprises + une mosaïque fantôme du souvenir en fond. Et la mélodie CHANTE la pensée de l'IA : sa complétion de texte est convertie note par note (les voyelles durent plus longtemps !).\n\n" +
+            "Idée : apprends 10 photos de coucher de soleil, puis écris « coucher de soleil » — compare l'image AVANT et APRÈS l'apprentissage. La différence, c'est sa mémoire !")
         tutoCard(Color.parseColor("#0891B2"), "\uD83D\uDCAC  Le Chat",
             "Un seul endroit pour parler à tous tes cerveaux.\n\n" +
             "\u2022 \uD83E\uDD16 AUTO : le plus malin disponible répond — cerveau distant s'il est activé, sinon ton enfant, sinon le cerveau code local.\n" +
@@ -1222,7 +1223,7 @@ class MainActivity : Activity() {
         val cc = card(Color.parseColor("#D946EF"))
         cc.addView(sectionTitle("\u2728  Créer à partir d'un texte", Color.parseColor("#D946EF")))
         cc.addView(TextView(this).apply {
-            text = "Écris quelques mots : ils deviennent la GRAINE d'une création. Le même texte redonne toujours la même œuvre — change un mot et tout change ! Image et musique sont générées 100% en local ; le code utilise ton IA locale, ou le cerveau distant s'il est activé."
+            text = "Écris quelques mots : ils deviennent la GRAINE d'une création — et l'IA PUISE DANS SA MÉMOIRE : si le texte contient un mot qu'elle connaît, l'image est peinte avec les vraies couleurs de tes photos apprises, et la mélodie CHANTE sa pensée (chaque caractère devient une note). 100% local ; le code utilise ton IA ou le cerveau distant."
             setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
         })
         createPrompt = field("Ex : coucher de soleil punk sur l'océan")
@@ -1266,7 +1267,11 @@ class MainActivity : Activity() {
         if (t.isEmpty()) return toast("Écris quelques mots d'abord")
         createOut.visibility = View.GONE
         Thread {
-            val bmp = creator.makeImage(t)
+            val learned = imageBrain.matchPalettes(t)
+            val bmp = creator.makeImage(t, 768, learned)
+            val memo = if (learned.isNotEmpty())
+                " (peinte avec mes souvenirs de : ${learned.joinToString(", ") { it.first }})" else ""
+
             var saved = ""
             try {
                 creationsDir()?.let { d ->
@@ -1278,7 +1283,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 createImg.setImageBitmap(bmp)
                 createImg.visibility = View.VISIBLE
-                toast("Image créée !$saved")
+                toast("Image créée !$memo$saved")
             }
         }.start()
     }
@@ -1288,7 +1293,8 @@ class MainActivity : Activity() {
         if (t.isEmpty()) return toast("Écris quelques mots d'abord")
         toast("Composition en cours...")
         Thread {
-            val pcm = creator.makeMusic(t)
+            val thought = if (codeBrain.size() > 0) codeBrain.complete(t.take(20), 90, 60) else ""
+            val pcm = creator.makeMusic(t, thought)
             lastMusic = pcm
             var saved = ""
             try {
@@ -1299,7 +1305,7 @@ class MainActivity : Activity() {
             } catch (e: Exception) { }
             runOnUiThread {
                 creator.play(pcm)
-                toast("\uD83C\uDFB5 Ta musique !$saved")
+                toast(if (thought.length > 8) "\uD83C\uDFB5 L'IA chante sa pensée !$saved" else "\uD83C\uDFB5 Ta musique !$saved")
             }
         }.start()
     }

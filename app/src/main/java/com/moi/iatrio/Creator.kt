@@ -31,12 +31,32 @@ class Creator {
      * Art génératif : palette harmonique dérivée du texte, formes en couches
      * (anneaux, arcs, triangles, traits), symétrie éventuelle, grain final.
      */
-    fun makeImage(prompt: String, size: Int = 768): Bitmap {
+    fun makeImage(
+        prompt: String,
+        size: Int = 768,
+        learned: List<Pair<String, DoubleArray>> = emptyList()   // palettes apprises (label, 192 RGB)
+    ): Bitmap {
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
         val hueBase = ((seed % 360 + 360) % 360).toFloat()
 
+        // Couleurs réelles apprises : on extrait les teintes dominantes des souvenirs
+        val learnedColors = ArrayList<Int>()
+        for ((_, avg) in learned) {
+            for (i in 0 until 64) {
+                val r = (avg[i * 3] * 255).toInt().coerceIn(0, 255)
+                val g = (avg[i * 3 + 1] * 255).toInt().coerceIn(0, 255)
+                val b = (avg[i * 3 + 2] * 255).toInt().coerceIn(0, 255)
+                learnedColors.add(Color.rgb(r, g, b))
+            }
+        }
+
         fun col(hueOff: Float, s: Float, v: Float, a: Int): Int {
+            // Si l'IA connaît le sujet, elle peint avec SES couleurs
+            if (learnedColors.isNotEmpty() && rnd.nextInt(100) < 70) {
+                val c = learnedColors[rnd.nextInt(learnedColors.size)]
+                return Color.argb(a, Color.red(c), Color.green(c), Color.blue(c))
+            }
             val hsv = floatArrayOf((hueBase + hueOff + 360f) % 360f, s, v)
             val c = Color.HSVToColor(hsv)
             return Color.argb(a, Color.red(c), Color.green(c), Color.blue(c))
@@ -51,6 +71,22 @@ class Creator {
             col(0f, 0.55f, 0.16f, 255), col(30f, 0.65f, 0.05f, 255), Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
         paint.shader = null
+
+        // Mosaïque fantôme : l'IA peint en fond le souvenir 8x8 de ce qu'elle connaît
+        if (learned.isNotEmpty()) {
+            val (_, avg) = learned[rnd.nextInt(learned.size)]
+            val cell = size / 8f
+            paint.style = Paint.Style.FILL
+            for (gy in 0 until 8) for (gx in 0 until 8) {
+                val i = (gy * 8 + gx) * 3
+                val r = (avg[i] * 255).toInt().coerceIn(0, 255)
+                val g = (avg[i + 1] * 255).toInt().coerceIn(0, 255)
+                val b = (avg[i + 2] * 255).toInt().coerceIn(0, 255)
+                paint.color = Color.argb(70, r, g, b)
+                canvas.drawRoundRect(gx * cell + 4, gy * cell + 4,
+                    (gx + 1) * cell - 4, (gy + 1) * cell - 4, cell / 4, cell / 4, paint)
+            }
+        }
 
         val mirror = rnd.nextBoolean()
         val palette = listOf(0f, 25f, 160f, 190f, 330f)   // harmonies autour de la base
@@ -120,7 +156,7 @@ class Creator {
      * Composition algorithmique : le texte choisit la gamme, le tempo, la
      * racine et la mélodie (marche aléatoire sur la gamme) + une basse.
      */
-    fun makeMusic(prompt: String): ShortArray {
+    fun makeMusic(prompt: String, thought: String = ""): ShortArray {
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
         val scales = listOf(
@@ -133,7 +169,7 @@ class Creator {
         val root = 220.0 * 2.0.pow(rnd.nextInt(8) / 12.0)
         val bpm = 84 + rnd.nextInt(56)
         val noteDur = 60.0 / bpm / 2.0            // croches
-        val nNotes = 32
+        val nNotes = 48
         val total = (rate * noteDur * nNotes).toInt() + rate / 2
         val out = DoubleArray(total)
 
@@ -153,15 +189,33 @@ class Creator {
 
         var degree = rnd.nextInt(scale.size)
         var octave = 1
+        val song = thought.filter { it.code in 32..1000 }
         for (k in 0 until nNotes) {
-            // marche aléatoire mélodique
-            degree += rnd.nextInt(5) - 2
-            if (degree < 0) { degree += scale.size; octave = maxOf(0, octave - 1) }
-            if (degree >= scale.size) { degree -= scale.size; octave = minOf(2, octave + 1) }
-            val freq = root * 2.0.pow(octave + scale[degree] / 12.0)
             val start = (k * noteDur * rate).toInt()
-            if (rnd.nextInt(100) < 85)   // parfois un silence, ça respire
-                addNote(freq, start, noteDur * 0.95, 0.5)
+            if (song.length > 8) {
+                // L'IA CHANTE SA PENSÉE : chaque caractère devient une note
+                val ch = song[k % song.length]
+                if (ch == ' ' || ch == '.') {
+                    // respiration
+                } else {
+                    degree = ch.code % scale.size
+                    octave = when {
+                        ch.isUpperCase() -> 2
+                        ch in "aeiouyàéèêô" -> 1
+                        else -> 1 + (ch.code / 7) % 2
+                    }.coerceIn(0, 2)
+                    val freq = root * 2.0.pow(octave + scale[degree] / 12.0)
+                    val long = ch in "aeiouyàéèêô"   // les voyelles durent plus longtemps
+                    addNote(freq, start, noteDur * (if (long) 1.8 else 0.95), 0.5)
+                }
+            } else {
+                // marche aléatoire classique si la mémoire est vide
+                degree += rnd.nextInt(5) - 2
+                if (degree < 0) { degree += scale.size; octave = maxOf(0, octave - 1) }
+                if (degree >= scale.size) { degree -= scale.size; octave = minOf(2, octave + 1) }
+                val freq = root * 2.0.pow(octave + scale[degree] / 12.0)
+                if (rnd.nextInt(100) < 85) addNote(freq, start, noteDur * 0.95, 0.5)
+            }
             // basse sur les temps
             if (k % 4 == 0) addNote(root / 2, start, noteDur * 3.0, 0.3)
         }

@@ -54,7 +54,7 @@ class ScanTrainer(
     fun scan(treeUri: Uri, onProgress: (String) -> Unit, onDone: (String) -> Unit) {
         cancel = false
         nImg = 0; nTxt = 0; nAud = 0; n3d = 0; visited = 0
-        maxImages = 1000; maxTexts = 200; maxAudio = 200; max3d = 60
+        maxImages = 1000; maxTexts = 300; maxAudio = 1000; max3d = 60
         visitLimit = 25_000
         Thread {
             try {
@@ -105,7 +105,7 @@ class ScanTrainer(
     fun scanAll(onProgress: (String) -> Unit, onDone: (String) -> Unit) {
         cancel = false
         nImg = 0; nTxt = 0; nAud = 0; n3d = 0; visited = 0
-        maxImages = 3000; maxTexts = 400; maxAudio = 400; max3d = 100
+        maxImages = 3000; maxTexts = 500; maxAudio = 3000; max3d = 100
         visitLimit = 100_000   // scan complet : on visite énormément de fichiers
         Thread {
             try {

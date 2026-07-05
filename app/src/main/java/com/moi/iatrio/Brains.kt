@@ -16,7 +16,46 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     private val net = NeuralNet(nIn, if (tf != null) 64 else 48)
     private val file = File(dir, if (tf != null) "image_tf.net" else "image.net")
     private val samples = File(dir, if (tf != null) "samples_img_tf.txt" else "samples_img.txt")
-    init { if (file.exists()) net.load(file) }
+    private val paletteFile = File(dir, "palette_img.txt")
+    // Mémoire des couleurs : moyenne 8x8 RGB par étiquette (label -> (nb, 192 valeurs))
+    private val palettes = HashMap<String, Pair<Int, DoubleArray>>()
+    init {
+        if (file.exists()) net.load(file)
+        try {
+            if (paletteFile.exists()) for (line in paletteFile.readLines()) {
+                val parts = line.split("|")
+                if (parts.size == 3) {
+                    val arr = parts[2].split(",").mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+                    if (arr.size == 192) palettes[parts[0]] = Pair(parts[1].toIntOrNull() ?: 1, arr)
+                }
+            }
+        } catch (e: Exception) { }
+    }
+
+    private fun rememberPalette(x: DoubleArray, label: String) {
+        val old = palettes[label]
+        val merged = if (old == null) Pair(1, x.copyOf())
+        else {
+            val (n, avg) = old
+            val out = DoubleArray(192) { (avg[it] * n + x[it]) / (n + 1) }
+            Pair(n + 1, out)
+        }
+        if (palettes.size < 120 || palettes.containsKey(label)) palettes[label] = merged
+        try {
+            paletteFile.bufferedWriter().use { w ->
+                for ((l, pn) in palettes) w.appendLine(l + "|" + pn.first + "|" + pn.second.joinToString(","))
+            }
+        } catch (e: Exception) { }
+    }
+
+    /** Palettes dont l'étiquette apparaît dans le texte (ou l'inverse). */
+    fun matchPalettes(prompt: String): List<Pair<String, DoubleArray>> {
+        val words = prompt.lowercase().split(Regex("[^\\p{L}0-9]+")).filter { it.length > 2 }
+        return palettes.entries.filter { (label, _) ->
+            val l = label.lowercase()
+            words.any { w -> l.contains(w) || w.contains(l) }
+        }.map { Pair(it.key, it.value.second) }
+    }
 
     private fun remember(x: DoubleArray, label: String) {
         try {
@@ -47,6 +86,7 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     private fun feat(bmp: Bitmap): DoubleArray = tf?.logits(bmp) ?: features(bmp)
 
     fun learn(bmp: Bitmap, label: String) {
+        rememberPalette(features(bmp), label)
         if (tf != null) {
             // Transfer learning : les caractéristiques MobileNet sont si riches
             // que la data augmentation n'est plus nécessaire.
@@ -72,7 +112,7 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     fun usingTF(): Boolean = tf != null
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
-    fun forget() { net.reset(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete() }
+    fun forget() { net.reset(); palettes.clear(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete(); if (paletteFile.exists()) paletteFile.delete() }
 }
 
 /**

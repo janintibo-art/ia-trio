@@ -278,11 +278,24 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
             }
             val safe = label.lowercase().replace(Regex("[^a-z0-9_-]"), "").ifBlank { "son" }
             for ((_, o) in slices.sortedByDescending { it.first }.take(3)) {
+                // ALIGNEMENT SUR LE TRANSITOIRE : on cherche la plus forte
+                // montée d'énergie et on coupe pile dessus — l'attaque du son
+                // tombe au début de l'extrait, les chops frappent SUR le temps.
+                val frame = 160
+                var bestRise = 0.0; var onset = 0; var prevE = 0.0
+                var fo = o
+                while (fo + frame <= minOf(o + win - 2000, pcm.size - frame)) {
+                    var e = 0.0
+                    for (i in fo until fo + frame) { val v = pcm[i].toDouble() / 32768.0; e += v * v }
+                    if (e - prevE > bestRise && fo > o) { bestRise = e - prevE; onset = fo - o }
+                    prevE = e; fo += frame
+                }
+                val start = (o + onset).coerceAtMost(pcm.size - win)
                 val f = File(clipDir, "${safe}__${clipIdx++}.pcm")
                 val bytes = ByteArray(win * 2)
                 for (i in 0 until win) {
-                    bytes[i * 2] = (pcm[o + i].toInt() and 0xFF).toByte()
-                    bytes[i * 2 + 1] = (pcm[o + i].toInt() shr 8 and 0xFF).toByte()
+                    bytes[i * 2] = (pcm[start + i].toInt() and 0xFF).toByte()
+                    bytes[i * 2 + 1] = (pcm[start + i].toInt() shr 8 and 0xFF).toByte()
                 }
                 f.writeBytes(bytes)
             }

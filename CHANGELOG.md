@@ -1,37 +1,33 @@
-# Nouveautés v31 — Arrangement & récupération facile 🎚📤
+# Nouveautés v32 — Groove & Justesse 🎶
 
-## Tes créations enfin faciles à récupérer
-- **📤 Bouton PARTAGER** : envoie directement les derniers fichiers créés
-  (.wav + .mid, ou .png) vers WhatsApp, Drive, Gmail, Bluetooth, ton PC...
-  C'est le chemin le plus simple.
-- **▶ Bouton Réécouter** : rejoue la dernière musique sans regénérer.
-- **Scan média automatique (LE correctif)** : sur Android 11+, un fichier
-  écrit directement n'apparaît dans les applis Fichiers/Musique/Galerie
-  qu'après un scan média... que l'app ne déclenchait pas. C'est pour ça que
-  tu ne trouvais rien ! Désormais chaque création est scannée : elle
-  apparaît INSTANTANÉMENT dans tes applis.
+Trois techniques de studio pour un remix nettement plus « pro ».
 
-## La musique a maintenant une histoire (structure)
-- **🏗 Arrangement complet** : INTRO (nappe + charley, la basse attend, un
-  chop annonce), COUPLETS (motif répété), PONT (la nappe se tait, chops à
-  l'octave, motif B), OUTRO (kick seul, dernier chop, FONDU final). Fini le
-  morceau qui démarre et s'arrête brutalement.
-- **🎛 Ducking sidechain** : la nappe et les chops s'écartent à chaque coup
-  de kick (bus séparés) — la « respiration » de toute la production
-  moderne, et LE truc qui nettoie un mix brouillon.
-- **🎹 Harmonie stabilisée** : un accord toutes les DEUX mesures (au lieu de
-  chaque mesure) — le morceau respire au lieu de sauter.
-- **Chops raccourcis** (2 slots max) et **nappe filtrée à 500 Hz** : chaque
-  élément a sa place dans le spectre.
+- **🎯 Extraits alignés sur l'attaque** : à la capture, l'app détecte la plus
+  forte montée d'énergie (transitoire) et coupe PILE dessus. Avant, l'attaque
+  pouvait tomber au milieu de la tranche → chops en retard, groove flou.
+  Maintenant chaque chop frappe SUR le temps.
+  ⚠ Rescanne ta musique une fois pour re-capturer des extraits alignés.
+- **🎼 Mise en tonalité automatique** : la hauteur dominante de chaque extrait
+  est détectée (autocorrélation, 60-500 Hz) ; la basse donne la tonique, et
+  la nappe + les 3 chops sont TRANSPOSÉS pour rentrer dans sa tonalité
+  (repli ±6 demi-tons, extraits trop bruités laissés intacts). Des extraits
+  venant de morceaux différents sonnent enfin ENSEMBLE.
+- **🕺 Swing** : les croches impaires arrivent un poil en retard (6 à 18%
+  du temps selon la créativité du profil) — la différence entre un
+  métronome et un groove humain.
+- **🚀 Riser** : la mesure avant le pont, un chop INVERSÉ monte en crescendo
+  — l'annonce classique du « drop ». + un accent brillant à l'entrée du pont.
+- **🎧 Largeur stéréo (effet Haas)** : les chops sont décalés de 9 ms entre
+  gauche et droite — le son « s'ouvre » au casque.
 
-# v30 — Collage  # v29 — Remix harmonique  # v28 — Réglages  # v27-v2
+# v31 — Arrangement  # v30 — Collage  # v29 — Harmonie  # v28-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v31.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v32.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v31 arrangement partage"
+git commit -m "v32 groove justesse"
 git push
 ```

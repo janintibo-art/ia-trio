@@ -654,6 +654,34 @@ class Creator {
         val chops = List(3) { mid[(it * mid.size / 3).coerceIn(0, mid.size - 1)] }
         val bedClip = mid[mid.size / 2]
 
+        // ===== JUSTESSE : hauteur dominante de chaque extrait, ramenée à la tonique =====
+        fun detectSemi(clip: ShortArray): Pair<Int, Double> {
+            val len = minOf(clip.size, 4000)
+            var e0 = 1e-9
+            for (i in 0 until len) e0 += clip[i].toDouble() * clip[i]
+            var best = 0; var bestV = 0.0
+            for (lag in 32..266) {                    // 60 Hz .. 500 Hz
+                var s = 0.0; var i = 0
+                while (i + lag < len) { s += clip[i].toDouble() * clip[i + lag]; i++ }
+                val v = s / e0
+                if (v > bestV) { bestV = v; best = lag }
+            }
+            if (best == 0 || bestV < 0.25) return Pair(0, 0.0)   // trop bruité : on ne touche pas
+            val freq = srate.toDouble() / best
+            return Pair((12 * ln(freq / 220.0) / ln(2.0)).roundToInt(), bestV)
+        }
+        val refSemi = detectSemi(bassClip).first     // la basse donne la tonique
+        fun corrFor(clip: ShortArray): Int {
+            val (semi, conf) = detectSemi(clip)
+            if (conf < 0.25) return 0
+            var d = (semi - refSemi) % 12
+            if (d > 6) d -= 12
+            if (d < -6) d += 12
+            return -d                                 // on ramène dans la tonalité
+        }
+        val chopCorr = IntArray(3) { corrFor(chops[it]) }
+        val bedCorr = corrFor(bedClip)
+
         fun resample(clip: ShortArray, factor: Double): DoubleArray {
             val outN = (clip.size / factor).toInt().coerceAtLeast(16)
             return DoubleArray(outN) { i ->
@@ -665,7 +693,7 @@ class Creator {
         }
 
         fun addClip(clip: ShortArray, start: Int, semitones: Int, vol: Double, pan: Double,
-                    reverse: Boolean, maxDurS: Double, ch: Int, lpCut: Double = 0.0, side: Boolean = false) {
+                    reverse: Boolean, maxDurS: Double, ch: Int, lpCut: Double = 0.0, side: Boolean = false, haas: Boolean = false) {
             val factor = 2.0.pow(semitones / 12.0)
             var d = resample(clip, factor)
             if (reverse) d = DoubleArray(d.size) { d[d.size - 1 - it] }
@@ -677,6 +705,7 @@ class Creator {
             val alpha = if (lpCut > 0) 1 - exp(-2 * PI * lpCut / srate) else 1.0
             val dl = if (side) sideL else mainL
             val dr = if (side) sideR else mainR
+            val hOff = if (haas) (srate * 0.009).toInt() else 0   // 9 ms : largeur stéréo
             for (i in 0 until len) {
                 val idx = start + i; if (idx >= n) break
                 var s = d[i]
@@ -685,7 +714,8 @@ class Creator {
                 if (i < fade) s *= i.toDouble() / fade
                 if (i > len - fade) s *= (len - i).toDouble() / fade
                 dl[idx] += s * (1.0 - pan)
-                dr[idx] += s * pan
+                val ridx = idx + hOff
+                if (ridx < n) dr[ridx] += s * pan
             }
         }
 
@@ -727,6 +757,11 @@ class Creator {
         val patternA = composePattern(creativity)
         val patternB = composePattern(creativity + 30)
 
+        // SWING : les croches impaires arrivent un poil en retard — le groove humain
+        val swingAmt = (0.06 + creativity * 0.0012).coerceAtMost(0.18)
+        fun swung(s: Int, base: Int): Int =
+            base + (if (s % 2 == 1) (slotDur * swingAmt * srate).toInt() else 0)
+
         // ===== ARRANGEMENT : intro -> A -> pont -> A -> outro =====
         for (bar in 0 until bars) {
             val q = bar * 4 / bars
@@ -736,9 +771,20 @@ class Creator {
             val shift = shiftFor(bar)
             val barStart = (bar * slotsPerBar * slotDur * srate).toInt()
             val variation = bar % 4 == 3
+            val nextQ = ((bar + 1) * 4) / bars
+            val bStart = sectionB && (bar * 4 / bars == 2) && ((bar - 1).coerceAtLeast(0) * 4 / bars != 2)
+
+            // RISER : la mesure AVANT le pont, un chop inversé monte en crescendo
+            if (nextQ == 2 && q != 2 && !intro && !outro) {
+                addClip(chops[1], barStart, shift + chopCorr[1], 0.15, 0.5, true, slotDur * 3.0, 0, side = true)
+                addClip(chops[1], barStart + (3 * slotDur * srate).toInt(), shift + chopCorr[1], 0.25, 0.5, true, slotDur * 3.0, 0, side = true)
+                addClip(chops[1], barStart + (6 * slotDur * srate).toInt(), shift + chopCorr[1], 0.36, 0.5, true, slotDur * 2.0, 0, side = true)
+            }
+            // SPLASH : accent brillant à l'entrée du pont
+            if (bStart) addClip(hatClip, barStart, -5, 0.3, 0.5, false, 0.5, 9)
 
             // NAPPE : présente sauf au pont, filtrée pour laisser la place
-            if (!sectionB) addClip(bedClip, barStart, -12 + shift, 0.14, 0.5, false,
+            if (!sectionB) addClip(bedClip, barStart, -12 + shift + bedCorr, 0.14, 0.5, false,
                 slotDur * slotsPerBar * 1.02, 2, lpCut = 500.0, side = true)
 
             // BASSE : absente à l'intro (elle ARRIVE, c'est la montée)
@@ -756,7 +802,7 @@ class Creator {
                 if (!intro && !outro && (s == 2 || s == 6))
                     addClip(kickClip, st, 3, 0.32, 0.45, false, 0.11, 9)
                 if (!outro && s % 2 == 0)
-                    addClip(hatClip, st, 12, 0.15, if (s % 4 == 0) 0.62 else 0.38, false, 0.045, 9)
+                    addClip(hatClip, swung(s, st), 12, 0.15, if (s % 4 == 0) 0.62 else 0.38, false, 0.045, 9)
             }
             if (variation && creativity > 30 && !outro)
                 addClip(hatClip, barStart + (7 * slotDur * srate).toInt(), 12, 0.2, 0.5, false, 0.09, 9)
@@ -764,17 +810,17 @@ class Creator {
             // CHOPS : pas à l'intro (une annonce), pas à l'outro (un adieu)
             when {
                 intro -> addClip(chops[0], barStart + (6 * slotDur * srate).toInt(),
-                    shift, 0.4, 0.5, false, slotDur * 1.9, 0, side = true)
-                outro -> addClip(chops[0], barStart, shift, 0.42, 0.5, false, slotDur * 3.9, 0, side = true)
+                    shift + chopCorr[0], 0.4, 0.5, false, slotDur * 1.9, 0, side = true)
+                outro -> addClip(chops[0], barStart, shift + chopCorr[0], 0.42, 0.5, false, slotDur * 3.9, 0, side = true)
                 else -> {
                     val pattern = if (sectionB) patternB else patternA
                     for ((s, chopIdx, len) in pattern) {
                         val st = barStart + (s * slotDur * srate).toInt()
                         val rev = variation && creativity > 55 && s == pattern.last().first
                         val accent = if (s % 4 == 0) 1.1 else 0.9
-                        addClip(chops[chopIdx], st, shift + (if (sectionB) 12 else 0),
+                        addClip(chops[chopIdx], swung(s, st), shift + chopCorr[chopIdx] + (if (sectionB) 12 else 0),
                             0.5 * accent, if (s % 2 == 0) 0.4 else 0.6, rev,
-                            slotDur * len * 0.98, 0, side = true)
+                            slotDur * len * 0.98, 0, side = true, haas = true)
                     }
                 }
             }

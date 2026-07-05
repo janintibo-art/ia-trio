@@ -72,6 +72,12 @@ class MainActivity : Activity() {
     private lateinit var liveConf: ProgressBar
     private lateinit var tabPunk: LinearLayout
     private lateinit var tabChat: LinearLayout
+    private lateinit var tabCreate: LinearLayout
+    private val creator = Creator()
+    private lateinit var createPrompt: EditText
+    private lateinit var createImg: ImageView
+    private lateinit var createOut: TextView
+    private var lastMusic: ShortArray? = null
     private lateinit var chatBox: LinearLayout
     private lateinit var chatInput: EditText
     private lateinit var chatSource: Spinner
@@ -236,7 +242,7 @@ class MainActivity : Activity() {
         })
 
         // Barre d'onglets
-        val tabNames = listOf("IA", "Profils", "\uD83D\uDC76", "\uD83E\uDD18", "\uD83D\uDCAC", "Tuto")
+        val tabNames = listOf("IA", "Profils", "\uD83D\uDC76", "\uD83E\uDD18", "\uD83D\uDCAC", "\u2728", "Tuto")
         tabButtons = tabNames.mapIndexed { i, n ->
             Button(this).apply {
                 text = n; isAllCaps = false; stateListAnimator = null
@@ -252,18 +258,21 @@ class MainActivity : Activity() {
         tabChild = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabPunk = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabChat = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tabCreate = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tabTuto = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         buildTrainTab(tabTrain)
         buildProfilesTab(tabProfiles)
         buildChildTab(tabChild)
         buildPunkTab(tabPunk)
         buildChatTab(tabChat)
+        buildCreateTab(tabCreate)
         buildTutoTab(tabTuto)
         screen.addView(tabTrain, lp(14))
         screen.addView(tabProfiles, lp(14))
         screen.addView(tabChild, lp(14))
         screen.addView(tabPunk, lp(14))
         screen.addView(tabChat, lp(14))
+        screen.addView(tabCreate, lp(14))
         screen.addView(tabTuto, lp(14))
 
         setContentView(ScrollView(this).apply { isFillViewport = true; addView(screen) })
@@ -277,7 +286,8 @@ class MainActivity : Activity() {
         tabChild.visibility = if (i == 2) View.VISIBLE else View.GONE
         tabPunk.visibility = if (i == 3) View.VISIBLE else View.GONE
         tabChat.visibility = if (i == 4) View.VISIBLE else View.GONE
-        tabTuto.visibility = if (i == 5) View.VISIBLE else View.GONE
+        tabCreate.visibility = if (i == 5) View.VISIBLE else View.GONE
+        tabTuto.visibility = if (i == 6) View.VISIBLE else View.GONE
         tabButtons.forEachIndexed { j, b ->
             b.setTextColor(if (i == j) Color.WHITE else cInk)
             b.typeface = if (i == j) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -866,6 +876,13 @@ class MainActivity : Activity() {
             "\u2022 Elle se trompe ? Écris le bon nom et « Apprendre cette vue » : elle apprend sur le champ. C'est la façon la plus rapide et amusante de l'entraîner.\n" +
             "\u2022 Fais le tour de la maison : tasse, plante, télécommande... 5-6 vues par objet sous différents angles et elle devient bluffante.\n" +
             "\u2022 La vision en direct alimente aussi « Penser ensemble » (l'orchestrateur).")
+        tutoCard(Color.parseColor("#D946EF"), "\u2728  Créer : texte \u2192 image, musique, code",
+            "Tes mots deviennent des œuvres, 100% sur ton téléphone.\n\n" +
+            "\u2022 \uD83D\uDDBC IMAGE : art génératif — le texte choisit la palette, les formes, la symétrie. Même texte = même image, à jamais. Change UN mot et tout change.\n" +
+            "\u2022 \uD83C\uDFB5 MUSIQUE : vraie synthèse — le texte choisit la gamme (majeure=joyeux, mineure=mélancolique, pentatonique=planant, orientale=mystérieux), le tempo et la mélodie. Sauvée en WAV.\n" +
+            "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
+            "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
+            "Idée : crée la musique ET l'image du même texte — elles partagent la même âme. Puis fais-la écouter à ton IA sons pour qu'elle apprenne tes propres créations !")
         tutoCard(Color.parseColor("#0891B2"), "\uD83D\uDCAC  Le Chat",
             "Un seul endroit pour parler à tous tes cerveaux.\n\n" +
             "\u2022 \uD83E\uDD16 AUTO : le plus malin disponible répond — cerveau distant s'il est activé, sinon ton enfant, sinon le cerveau code local.\n" +
@@ -1120,6 +1137,7 @@ class MainActivity : Activity() {
         stopLive()
         punkRunning = false
         explorer.cancel = true
+        creator.stop()
         // Sauvegarde automatique silencieuse du profil actif
         try {
             if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) {
@@ -1196,6 +1214,112 @@ class MainActivity : Activity() {
                 audStatus.text = "Appris : ${audioBrain.summary()}"
                 codeStatus.text = "Mémoire : ${codeBrain.size()} motifs"
             })
+    }
+
+    // ============================================================
+    // ONGLET ✨ : CRÉER — un texte devient image, musique ou code
+    private fun buildCreateTab(box: LinearLayout) {
+        val cc = card(Color.parseColor("#D946EF"))
+        cc.addView(sectionTitle("\u2728  Créer à partir d'un texte", Color.parseColor("#D946EF")))
+        cc.addView(TextView(this).apply {
+            text = "Écris quelques mots : ils deviennent la GRAINE d'une création. Le même texte redonne toujours la même œuvre — change un mot et tout change ! Image et musique sont générées 100% en local ; le code utilise ton IA locale, ou le cerveau distant s'il est activé."
+            setTextColor(cMuted); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f); setPadding(0, 0, 0, dp(8))
+        })
+        createPrompt = field("Ex : coucher de soleil punk sur l'océan")
+        cc.addView(createPrompt)
+        cc.addView(rowEqual(
+            pill("\uD83D\uDDBC Image", Color.parseColor("#D946EF"), Color.parseColor("#A21CAF")) { doCreateImage() },
+            pill("\uD83C\uDFB5 Musique", Color.parseColor("#D946EF"), Color.parseColor("#A21CAF")) { doCreateMusic() },
+            pill("\uD83D\uDCBB Code", Color.parseColor("#D946EF"), Color.parseColor("#A21CAF")) { doCreateCode() }
+        ), lp(10))
+        cc.addView(rowEqual(
+            ghost("\u23F9 Stop musique") { creator.stop() }
+        ), lp(8))
+        createImg = ImageView(this).apply {
+            adjustViewBounds = true
+            visibility = View.GONE
+        }
+        cc.addView(createImg, lp(10))
+        createOut = TextView(this).apply {
+            setTextColor(cInk); setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(cField) }
+            visibility = View.GONE
+        }
+        cc.addView(createOut, lp(10))
+        box.addView(cc, lp(0))
+    }
+
+    private fun creationsDir(): File? = try {
+        if (Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager())
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "IATrio/creations").apply { mkdirs() }
+        else null
+    } catch (e: Exception) { null }
+
+    private fun stamp(): String =
+        java.text.SimpleDateFormat("MMdd_HHmmss", Locale.FRANCE).format(java.util.Date())
+
+    private fun doCreateImage() {
+        val t = createPrompt.text.toString().trim()
+        if (t.isEmpty()) return toast("Écris quelques mots d'abord")
+        createOut.visibility = View.GONE
+        Thread {
+            val bmp = creator.makeImage(t)
+            var saved = ""
+            try {
+                creationsDir()?.let { d ->
+                    val f = File(d, "image_${stamp()}.png")
+                    f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 95, it) }
+                    saved = " Enregistrée dans Download/IATrio/creations/"
+                }
+            } catch (e: Exception) { }
+            runOnUiThread {
+                createImg.setImageBitmap(bmp)
+                createImg.visibility = View.VISIBLE
+                toast("Image créée !$saved")
+            }
+        }.start()
+    }
+
+    private fun doCreateMusic() {
+        val t = createPrompt.text.toString().trim()
+        if (t.isEmpty()) return toast("Écris quelques mots d'abord")
+        toast("Composition en cours...")
+        Thread {
+            val pcm = creator.makeMusic(t)
+            lastMusic = pcm
+            var saved = ""
+            try {
+                creationsDir()?.let { d ->
+                    creator.saveWav(pcm, File(d, "musique_${stamp()}.wav"))
+                    saved = " WAV dans Download/IATrio/creations/"
+                }
+            } catch (e: Exception) { }
+            runOnUiThread {
+                creator.play(pcm)
+                toast("\uD83C\uDFB5 Ta musique !$saved")
+            }
+        }.start()
+    }
+
+    private fun doCreateCode() {
+        val t = createPrompt.text.toString().trim()
+        if (t.isEmpty()) return toast("Écris quelques mots d'abord")
+        createImg.visibility = View.GONE
+        createOut.visibility = View.VISIBLE
+        if (remote.ready()) {
+            createOut.text = "\u2601\uFE0F Le cerveau distant écrit ton code..."
+            remote.ask("Écris du code (langage le plus adapté) pour : $t. Réponds UNIQUEMENT avec le code et de courts commentaires en français.") {
+                createOut.text = it
+            }
+        } else {
+            createOut.text = if (codeBrain.size() > 0)
+                codeBrain.complete("// $t\n", 400, profile.creativity)
+            else
+                "(Mon IA code est vide : apprends-lui du code d'abord, ou active le cerveau distant dans Profils pour du code de qualité pro.)"
+        }
     }
 
     // ============================================================

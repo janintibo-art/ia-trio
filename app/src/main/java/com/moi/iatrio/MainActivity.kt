@@ -78,6 +78,7 @@ class MainActivity : Activity() {
     private lateinit var createImg: ImageView
     private lateinit var createOut: TextView
     private var lastMusic: ShortArray? = null
+    private val lastCreations = ArrayList<File>()
     private lateinit var createTempo: Spinner
     private lateinit var createLen: Spinner
     private lateinit var createStatus: TextView
@@ -910,8 +911,10 @@ class MainActivity : Activity() {
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
             "VRAIE COMPOSITION \uD83C\uDFBC : progressions d'accords (I-V-vi-IV...), structure AABA (couplet/pont/retour), rythmes variés avec syncopes, BATTERIE synthétisée (kick, caisse claire, charley — exportée sur le canal 10 MIDI !), écho de production. La CRÉATIVITÉ de ton profil pilote les syncopes, les ornements et l'audace mélodique : profil Précis = sage, profil Créatif = ça part en impro !\n\n" +
             "RÉGLAGES \uD83C\uDF9A : choisis le TEMPO (auto ou 70-160 BPM) et la LONGUEUR (4 à 32 mesures) avant de générer. « Très long » en 70 BPM \u2248 2 minutes de musique !\n\n" +
+            "RÉCUPÉRER TES CRÉATIONS \uD83D\uDCE4 : le plus simple est le bouton PARTAGER — il envoie directement le .wav + .mid (ou le .png) vers WhatsApp, Drive, Gmail, ton PC... Le bouton \u25B6 Réécouter rejoue la dernière musique. Les fichiers apparaissent aussi maintenant instantanément dans tes applis Fichiers et Musique (scan média automatique).\n\n" +
             "OÙ SONT MES FICHIERS ? Après chaque génération, le statut affiche les noms exacts : musique_XXXX.wav (l'audio) et musique_XXXX.mid (la partition MIDI), dans Download/IATrio/creations/. Ouvre ton gestionnaire de fichiers \u2192 Téléchargements \u2192 IATrio \u2192 creations. Si le statut affiche \u26A0, autorise « Accès à tous les fichiers » (onglet IA, bouton TOUT scanner) puis regénère.\n\n" +
             "EXPORT MIDI \uD83C\uDFB9 : chaque composition est aussi sauvée en .mid (mélodie canal 1, basse canal 2, tempo inclus) — ouvre-le dans FL Studio, Ableton, GarageBand ou MuseScore pour changer les instruments, corriger des notes, ajouter des pistes. L'IA compose, TU produis !\n\n" +
+            "ARRANGEMENT \uD83C\uDFD7 : chaque morceau a désormais une histoire — INTRO (le décor se pose, la basse attend), COUPLETS (motif répété), PONT (la nappe se tait, tout monte à l'octave), OUTRO (fondu final). Et le DUCKING sidechain : la nappe et les chops s'écartent à chaque kick — c'est la « respiration » qu'on entend dans toute la musique produite moderne.\n\n" +
             "REMIX HARMONIQUE DE TES VRAIS MORCEAUX \uD83C\uDF9B : l'IA garde les meilleurs extraits AUDIO RÉELS de ta musique (banque 400 extraits) et remixe comme un producteur : elle ANALYSE tes extraits et leur donne des RÔLES fixes (le plus grave = basse filtrée, le plus brillant = charley, les médiums = chops mélodiques) ; elle compose UN motif puis le RÉPÈTE avec variations (répétition = musique) ; et elle TRANSPOSE tout selon une progression d'accords (I-V-vi-IV) — c'est là que naît l'harmonie. Le pont change de motif et monte à l'octave, la nappe se tait pour la tension. RIEN n'est synthétisé. Rescanne ta musique une fois pour remplir la banque !\n\n" +
             "SONORITÉ DE TA MUSIQUE \uD83C\uDFB8 : l'IA mémorise l'empreinte spectrale (32 bandes) de chaque morceau appris. À la création, cette empreinte façonne les HARMONIQUES des notes, la hauteur, le tempo et l'attaque : scanne du rock \u2192 notes mordantes ; du piano doux \u2192 notes chaudes. Écris « rock » pour la sonorité rock précise, ou n'importe quoi pour la couleur générale de ta bibliothèque. (Rescanne ta musique une fois après cette mise à jour pour capturer les empreintes !)\n\n" +
             "NOURRI PAR SA MÉMOIRE : si ton texte contient un mot que l'IA connaît (« chat », « plage »...), l'image est peinte avec les VRAIES couleurs de tes photos apprises + une mosaïque fantôme du souvenir en fond. Et la mélodie CHANTE la pensée de l'IA : sa complétion de texte est convertie note par note (les voyelles durent plus longtemps !).\n\n" +
@@ -1275,7 +1278,9 @@ class MainActivity : Activity() {
             pill("\uD83D\uDCBB Code", Color.parseColor("#D946EF"), Color.parseColor("#A21CAF")) { doCreateCode() }
         ), lp(10))
         cc.addView(rowEqual(
-            ghost("\u23F9 Stop musique") { creator.stop() }
+            ghost("\u25B6 Réécouter") { lastMusic?.let { creator.play(it) } ?: toast("Génère une musique d'abord") },
+            ghost("\u23F9 Stop") { creator.stop() },
+            ghost("\uD83D\uDCE4 Partager") { shareCreations() }
         ), lp(8))
         createStatus = status()
         cc.addView(createStatus)
@@ -1294,6 +1299,23 @@ class MainActivity : Activity() {
         }
         cc.addView(createOut, lp(10))
         box.addView(cc, lp(0))
+    }
+
+    /** Partage les derniers fichiers créés (WhatsApp, Drive, mail, PC...). */
+    private fun shareCreations() {
+        val files = lastCreations.filter { it.exists() }
+        if (files.isEmpty()) return toast("Génère d'abord une création (et vérifie la permission fichiers)")
+        try {
+            val uris = ArrayList<android.net.Uri>()
+            for (f in files) uris.add(androidx.core.content.FileProvider.getUriForFile(
+                this, "com.moi.iatrio.fileprovider", f))
+            val i = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "*/*"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(i, "Partager ta création"))
+        } catch (e: Exception) { toast("Partage impossible : ${e.message}") }
     }
 
     private fun creationsDir(): File? = try {
@@ -1329,7 +1351,10 @@ class MainActivity : Activity() {
             var savedOk = false
             try {
                 creationsDir()?.let { d ->
-                    File(d, "$base.png").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 95, it) }
+                    val fp = File(d, "$base.png")
+                    fp.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 95, it) }
+                    lastCreations.clear(); lastCreations.add(fp)
+                    android.media.MediaScannerConnection.scanFile(this, arrayOf(fp.absolutePath), null, null)
                     savedOk = true
                 }
             } catch (e: Exception) { }
@@ -1371,12 +1396,19 @@ class MainActivity : Activity() {
                        else " (Scanne ta musique pour que je remixe TES morceaux !)"
             }
             lastMusic = pcm
+            lastMusic = pcm
             val base = "musique_${stamp()}"
             var savedOk = false
             try {
                 creationsDir()?.let { d ->
-                    creator.saveWav(pcm, File(d, "$base.wav"))
-                    creator.saveMidi(File(d, "$base.mid"))
+                    val fw = File(d, "$base.wav"); val fm = File(d, "$base.mid")
+                    creator.saveWav(pcm, fw)
+                    creator.saveMidi(fm)
+                    lastCreations.clear(); lastCreations.add(fw); lastCreations.add(fm)
+                    // scan média : les fichiers apparaissent IMMÉDIATEMENT dans
+                    // les applis Fichiers / Musique / Galerie
+                    android.media.MediaScannerConnection.scanFile(this,
+                        arrayOf(fw.absolutePath, fm.absolutePath), null, null)
                     savedOk = true
                 }
             } catch (e: Exception) { }

@@ -1,39 +1,37 @@
-# Nouveautés v30 — Le collage de tes vraies photos 🖼
+# Nouveautés v31 — Arrangement & récupération facile 🎚📤
 
-La recette du remix musical, appliquée à l'image : l'IA n'imite plus tes
-photos, elle les RÉUTILISE.
+## Tes créations enfin faciles à récupérer
+- **📤 Bouton PARTAGER** : envoie directement les derniers fichiers créés
+  (.wav + .mid, ou .png) vers WhatsApp, Drive, Gmail, Bluetooth, ton PC...
+  C'est le chemin le plus simple.
+- **▶ Bouton Réécouter** : rejoue la dernière musique sans regénérer.
+- **Scan média automatique (LE correctif)** : sur Android 11+, un fichier
+  écrit directement n'apparaît dans les applis Fichiers/Musique/Galerie
+  qu'après un scan média... que l'app ne déclenchait pas. C'est pour ça que
+  tu ne trouvais rien ! Désormais chaque création est scannée : elle
+  apparaît INSTANTANÉMENT dans tes applis.
 
-- **Banque d'images réelles** : à chaque photo apprise, une vraie vignette
-  128×128 est conservée (jusqu'à 400, par profil, effacées par « Oublier »).
-- **Le collagiste discipliné** (utilisé dès que la banque contient 4 photos) :
-  - **RÔLES** : l'IA analyse tes vignettes — la plus DOUCE (le moins de
-    détails) devient le fond assombri, la plus COLORÉE devient le médaillon
-    focal cerclé, les autres deviennent les tuiles de la mosaïque ;
-  - **MOTIF répété** : un agencement de rangée est composé une fois (guidé
-    par la pensée de l'IA) puis répété en rangées décalées façon briques,
-    avec respirations et variations — le rythme visuel ;
-  - **HARMONIE** : toutes les tuiles sont teintées vers la palette de
-    l'image « tonique » (la focale) — l'équivalent visuel de la
-    transposition d'accords : c'est ce qui unifie le collage au lieu d'un
-    patchwork qui jure ;
-  - finitions : liserés toniques, double cercle du médaillon, vignettage,
-    grain. Sortie 1024×1024 PNG.
-- **Ciblage** : « plage » → collage de tes photos de plage ; autre texte →
-  mélange de toute ta banque. La créativité du profil règle la taille de
-  grille, les tuiles doubles et le médaillon.
-- **Statut clair** : le nom exact du .png et le dossier s'affichent après
-  génération (ou l'explication permission, comme pour la musique).
-- Le dessin abstrait (palettes) reste le repli si la banque est vide.
-- ⚠ La banque se remplit À L'APPRENTISSAGE : rescanne tes photos une fois.
+## La musique a maintenant une histoire (structure)
+- **🏗 Arrangement complet** : INTRO (nappe + charley, la basse attend, un
+  chop annonce), COUPLETS (motif répété), PONT (la nappe se tait, chops à
+  l'octave, motif B), OUTRO (kick seul, dernier chop, FONDU final). Fini le
+  morceau qui démarre et s'arrête brutalement.
+- **🎛 Ducking sidechain** : la nappe et les chops s'écartent à chaque coup
+  de kick (bus séparés) — la « respiration » de toute la production
+  moderne, et LE truc qui nettoie un mix brouillon.
+- **🎹 Harmonie stabilisée** : un accord toutes les DEUX mesures (au lieu de
+  chaque mesure) — le morceau respire au lieu de sauter.
+- **Chops raccourcis** (2 slots max) et **nappe filtrée à 500 Hz** : chaque
+  élément a sa place dans le spectre.
 
-# v29 — Remix harmonique  # v28 — Réglages  # v27 — Remix  # v26-v2
+# v30 — Collage  # v29 — Remix harmonique  # v28 — Réglages  # v27-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v30.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v31.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v30 collage vraies photos"
+git commit -m "v31 arrangement partage"
 git push
 ```

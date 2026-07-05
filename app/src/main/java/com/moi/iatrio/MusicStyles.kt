@@ -17,7 +17,8 @@ data class MusicStyle(
     val swing: Double,               // retard des doubles-croches impaires
     val chops: List<String>,         // motifs mélodiques du genre (calme -> dense)
     val bassSlots: List<Int>,        // où la basse se pose
-    val drumBoost: Double = 1.0      // énergie de la batterie
+    val drumBoost: Double = 1.0,     // énergie de la batterie (0 = pas de batterie)
+    val steps: Int = 16              // pas par mesure (18 = mesure impaire 9/8 !)
 )
 
 object MusicStyles {
@@ -57,7 +58,29 @@ object MusicStyles {
             listOf("1000001000001000", "1000000010000010"), listOf(0, 8), 0.85),
         MusicStyle("Afrobeat", listOf("afro", "afrobeat", "afrobeats", "amapiano"), 100, 115,
             "1000100000101000", "0010000100100001", "1010101010101010", 0.05,
-            listOf("1001001010010010", "0010100100101000"), listOf(0, 8))
+            listOf("1001001010010010", "0010100100101000"), listOf(0, 8)),
+        // ===== LES MARGES 🤘 =====
+        MusicStyle("Breakcore", listOf("breakcore", "break", "amen", "idm"), 190, 220,
+            "1001001010010010", "0100100101001001", "1111111111111111", 0.0,
+            listOf("1011011010110110", "1111011011110110"), listOf(0, 6, 10), 1.25),
+        MusicStyle("Hardtek", listOf("hardtek", "hardtech", "tribe", "teuf", "freeparty", "tekno"), 175, 190,
+            "1000100010001000", "0000000000001000", "0010001000100010", 0.0,
+            listOf("0010001000100010", "0011001100110011"), listOf(2, 6, 10, 14), 1.3),
+        MusicStyle("Punk", listOf("punk", "hardcore", "dbeat", "d-beat", "crust"), 160, 190,
+            "1010001010100010", "0000100000001000", "1010101010101010", 0.0,
+            listOf("1010101010101010", "1110101011101010"), listOf(0, 8), 1.35),
+        MusicStyle("Oi!", listOf("oi", "streetpunk", "skinhead"), 115, 135,
+            "1000001010000000", "0000100000001000", "1010101010101010", 0.0,
+            listOf("1000100010001000", "1010100010101000"), listOf(0, 8), 1.2),
+        MusicStyle("Balkan", listOf("balkan", "fanfare", "tzigane", "gipsy", "cocek", "čoček", "klezmer"), 105, 130,
+            "100010001000100000", "000000000000001000", "101010101010101010", 0.0,
+            listOf("001000100010001010", "011001100110011010"), listOf(0, 12), 1.1, 18),
+        MusicStyle("Classique", listOf("classique", "classical", "orchestre", "symphonie", "piano"), 72, 100,
+            "0000000000000000", "0000000000000000", "0000000000000000", 0.0,
+            listOf("1000100010001000", "1010101010101010"), listOf(0, 8), 0.0),
+        MusicStyle("Baroque", listOf("baroque", "bach", "clavecin", "vivaldi", "fugue"), 92, 115,
+            "0000000000000000", "0000000000000000", "0000000000000000", 0.0,
+            listOf("1111111111111111", "1111111111111111"), listOf(0, 4, 8, 12), 0.0)
     )
 
     /** Choix : genre forcé > mot-clé dans le texte > auto (selon la graine). */

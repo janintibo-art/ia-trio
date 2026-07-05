@@ -636,7 +636,7 @@ class Creator {
         val style = MusicStyles.pick(prompt, genre, seed)
         val bpm = if (bpmOverride > 0) bpmOverride
                   else style.bpmLo + rnd.nextInt(style.bpmHi - style.bpmLo + 1)
-        val slotsPerBar = 16                          // doubles-croches
+        val slotsPerBar = style.steps                 // 16, ou 18 pour les mesures impaires (9/8 balkan !)
         val slotDur = 60.0 / bpm / 4.0
         val bars = barsCount.coerceIn(4, 64)
         val n = (srate * slotDur * bars * slotsPerBar).toInt() + srate * 2
@@ -779,11 +779,12 @@ class Creator {
 
             // RISER avant le pont
             if (nextQ == 2 && q != 2 && !intro && !outro) {
-                addClip(chops[1], barStart, shift + chopCorr[1], 0.15, 0.5, true, slotDur * 6, 0, side = true)
-                addClip(chops[1], barStart + (6 * slotDur * srate).toInt(), shift + chopCorr[1], 0.25, 0.5, true, slotDur * 6, 0, side = true)
-                addClip(chops[1], barStart + (12 * slotDur * srate).toInt(), shift + chopCorr[1], 0.36, 0.5, true, slotDur * 4, 0, side = true)
+                val r1 = slotsPerBar * 3 / 8; val r2 = slotsPerBar * 3 / 4
+                addClip(chops[1], barStart, shift + chopCorr[1], 0.15, 0.5, true, slotDur * r1, 0, side = true)
+                addClip(chops[1], barStart + (r1 * slotDur * srate).toInt(), shift + chopCorr[1], 0.25, 0.5, true, slotDur * (r2 - r1), 0, side = true)
+                addClip(chops[1], barStart + (r2 * slotDur * srate).toInt(), shift + chopCorr[1], 0.36, 0.5, true, slotDur * (slotsPerBar - r2), 0, side = true)
             }
-            if (bStart) addClip(hatClip, barStart, -5, 0.3, 0.5, false, 0.5, 9)
+            if (bStart && style.drumBoost > 0) addClip(hatClip, barStart, -5, 0.3, 0.5, false, 0.5, 9)
 
             // NAPPE
             if (!sectionB) addClip(bedClip, barStart, -12 + shift + bedCorr, 0.14, 0.5, false,
@@ -792,6 +793,7 @@ class Creator {
             // BASSE : aux emplacements du genre
             if (!intro) {
                 for (bs in style.bassSlots) {
+                    if (bs >= slotsPerBar) continue
                     if (outro && bs != 0) continue
                     addClip(bassClip, barStart + (bs * slotDur * srate).toInt(),
                         -12 + shift, if (bs == 0) 0.44 else 0.38, 0.5, false, slotDur * 6.5, 1, lpCut = 200.0)
@@ -799,24 +801,24 @@ class Creator {
             }
 
             // BATTERIE : les patterns AUTHENTIQUES du genre
-            for (s in 0 until slotsPerBar) {
+            if (style.drumBoost > 0) for (s in 0 until slotsPerBar) {
                 val st = barStart + (s * slotDur * srate).toInt()
-                val kickHere = style.kick[s] == '1' && (!intro || s == 0) && (!outro || s == 0)
+                val kickHere = style.kick[s % style.kick.length] == '1' && (!intro || s == 0) && (!outro || s == 0)
                 if (kickHere) { addClip(kickClip, st, -7, 0.5 * style.drumBoost, 0.5, false, 0.09, 9); duckAt(st) }
-                if (style.snare[s] == '1' && !intro && !outro)
+                if (style.snare[s % style.snare.length] == '1' && !intro && !outro)
                     addClip(kickClip, st, 3, 0.32 * style.drumBoost, 0.45, false, 0.11, 9)
-                if (style.hat[s] == '1' && !outro)
+                if (style.hat[s % style.hat.length] == '1' && !outro)
                     addClip(hatClip, swung(s, st), 12,
                         (if (s % 4 == 0) 0.16 else 0.10) * style.drumBoost,
                         if (s % 4 == 0) 0.62 else 0.38, false, 0.04, 9)
             }
-            if (variation && creativity > 30 && !outro)
-                addClip(hatClip, barStart + (15 * slotDur * srate).toInt(), 12, 0.2, 0.5, false, 0.08, 9)
+            if (variation && creativity > 30 && !outro && style.drumBoost > 0)
+                addClip(hatClip, barStart + ((slotsPerBar - 1) * slotDur * srate).toInt(), 12, 0.2, 0.5, false, 0.08, 9)
 
             // CHOPS
             when {
-                intro -> addClip(chops[0], barStart + (12 * slotDur * srate).toInt(),
-                    shift + chopCorr[0], 0.4, 0.5, false, slotDur * 3.8, 0, side = true)
+                intro -> addClip(chops[0], barStart + ((slotsPerBar * 3 / 4) * slotDur * srate).toInt(),
+                    shift + chopCorr[0], 0.4, 0.5, false, slotDur * (slotsPerBar / 4.0) * 0.95, 0, side = true)
                 outro -> addClip(chops[0], barStart, shift + chopCorr[0], 0.42, 0.5, false, slotDur * 7.8, 0, side = true)
                 else -> {
                     val pattern = if (sectionB) patternB else patternA

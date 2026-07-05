@@ -1,35 +1,35 @@
-# Nouveautés v33 — La base des genres musicaux 🥁
+# Nouveautés v34 — Les marges 🤘 (7 genres de plus)
 
-L'IA connaît maintenant les codes rythmiques de 12 genres réels.
+De la teuf au clavecin : 19 genres au total, dont des raretés.
 
-- **Nouveau fichier MusicStyles.kt** : une base de connaissances avec, pour
-  chaque genre, son tempo authentique, ses patterns de grosse caisse /
-  caisse claire / charley (grille de 16 doubles-croches), son swing, ses
-  motifs mélodiques types et le placement de sa basse :
-  - **Hip-hop** 85-95 BPM (boom-bap swingué) · **Trap** 130-150 (caisse en
-    half-time, charleys en 16es) · **House** 120-128 (four-on-the-floor,
-    charley ouvert à contretemps) · **Techno** 125-135 · **Reggae** 70-80
-    (one drop : kick+caisse ensemble sur le 3, skank à contretemps) ·
-    **Reggaeton** 90-100 (dembow) · **Funk** 95-112 (syncopes en 16es) ·
-    **Rock** 110-140 · **Drum'n'bass** 165-178 · **Lo-fi** 75-88 (swing
-    prononcé, batterie douce) · **Afrobeat** 100-115 · **Pop** 100-120.
-- **Trois façons de choisir** : la liste déroulante (avec les BPM affichés),
-  un mot-clé dans ton texte (« un beat reggae posé », « ambiance lofi »),
-  ou 🎲 auto (la graine décide). Le tempo manuel garde la priorité.
-- **Grille en doubles-croches** (16 pas par mesure au lieu de 8) :
-  indispensable pour les charleys trap, le dembow et les syncopes funk.
-- Le toast annonce le résultat : « REMIX Reggae à 74 BPM (24 extraits) ».
-- Tout le reste est conservé : rôles, justesse, arrangement, ducking,
-  riser, swing (celui du genre + ta créativité), export WAV+MIDI, partage.
+- **Breakcore** 190-220 BPM : kicks et caisses éclatés façon amen break
+  haché, charleys saturés en doubles-croches, chops ultra-denses.
+- **Hardtek / tribe** 175-190 : kick martelé four-on-the-floor, et LA
+  signature du genre : la basse roulante à CONTRETEMPS (emplacements
+  2-6-10-14) + stabs offbeat.
+- **Punk** 160-190 : d-beat (le pattern Discharge), charley appuyé,
+  énergie maximale (boost batterie 1.35).
+- **Oi!** 115-135 : street-punk martelé mi-tempo, carré, chantable.
+- **Balkan** 105-130 : LA nouveauté technique — véritable MESURE IMPAIRE :
+  grille de 18 pas = 9/8 découpé en 2+2+2+3 comme le čoček des fanfares
+  tziganes. Accents de kick sur les têtes de groupes, stabs cuivrés à
+  contretemps. (La grille est maintenant à longueur variable par genre.)
+- **Classique** 72-100 et **Baroque** 92-115 : SANS batterie (boost 0) —
+  le remix devient musique de chambre : nappe, mélodie, et pour le baroque
+  la basse CONTINUE (4 appuis par mesure) sous des arpèges moto perpetuo
+  en doubles-croches, façon clavecin.
+- Mots-clés reconnus : « teuf », « tribe », « d-beat », « fanfare »,
+  « tzigane », « čoček », « bach », « clavecin », « vivaldi »...
+- Le sélecteur de genre liste automatiquement les 19 styles avec leurs BPM.
 
-# v32 — Groove  # v31 — Arrangement  # v30 — Collage  # v29-v2
+# v33 — Genres  # v32 — Groove  # v31 — Arrangement  # v30-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v33.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v34.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v33 genres musicaux"
+git commit -m "v34 genres marginaux"
 git push
 ```

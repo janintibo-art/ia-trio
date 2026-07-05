@@ -1,31 +1,37 @@
-# Nouveautés v20 — Le Créateur ✨
+# Correctifs v21 — Scan Turbo 🔧
 
-Un texte devient une œuvre. Nouvel onglet ✨ :
+Le scan trouvait peu de contenu : quatre causes identifiées et corrigées.
 
-- **🖼 Texte → IMAGE** : art génératif 100% local. Tes mots deviennent une
-  graine qui détermine la palette (harmonies de couleurs), les formes
-  (anneaux, arcs, triangles, traits), la symétrie, le halo central (sa taille
-  dépend du nombre de mots !) et le grain. Le même texte redonne TOUJOURS la
-  même image — change un mot et tout change. PNG en haute résolution.
-- **🎵 Texte → MUSIQUE** : vraie synthèse audio locale. Le texte choisit la
-  gamme (majeure = joyeux, mineure = mélancolique, pentatonique = planant,
-  orientale = mystérieux), la note racine, le tempo (84-140 bpm), puis une
-  mélodie en marche aléatoire avec enveloppe, harmoniques et ligne de basse.
-  Lecture immédiate + sauvegarde en WAV standard.
-- **💻 Texte → CODE** : ton IA code locale génère dans ton style (créativité
-  du profil), ou le cerveau distant s'il est activé — code de qualité pro
-  avec commentaires en français. Sortie sélectionnable pour copier.
-- Créations enregistrées dans **Download/IATrio/creations/** (avec la
-  permission fichiers), bouton Stop musique, arrêt auto en quittant l'app.
+- **📸 Photos HEIC/HEIF reconnues** : les Samsung (et beaucoup d'autres)
+  enregistrent les photos en .heic par défaut — format qui n'était PAS dans
+  la liste ! C'était la cause principale. Corrigé.
+- **📈 Plafonds fortement relevés** :
+  - Scan d'un dossier : 1000 images, 200 textes, 200 sons, 60 modèles 3D
+    (au lieu de 300/60/60/40), jusqu'à 25 000 fichiers visités.
+  - Scan complet : **3000 images, 400 textes, 400 sons, 100 modèles 3D**,
+    jusqu'à 100 000 fichiers visités.
+- **💾 Détection de carte SD fiabilisée** : en plus de /storage, l'app remonte
+  maintenant depuis ses propres dossiers sur chaque volume (méthode Android
+  officielle) — la carte SD est trouvée même sur les appareils qui la cachent.
+  Le scan annonce désormais ce qu'il a détecté : « 2 stockages détectés :
+  téléphone, carte SD (1A2B-3C4D) — je fouille... »
+- **⏳ Feedback continu** : le compteur se met à jour tous les 250 fichiers
+  parcourus, même sans trouvaille — fini l'impression que l'app est bloquée.
+- **🎬 Bonus : les VIDÉOS deviennent des sources audio** ! La piste son des
+  .mp4, .3gp, .webm, .mkv est extraite (2 premières secondes) et apprise —
+  tes vidéos de concert nourrissent l'IA sons.
 
-# v19 — Le Chat  # v18 — Exploration  # v17 — La Totale  # v16-v2 — Fondations
+Note : un scan complet apprend maintenant BEAUCOUP plus — il peut durer
+plusieurs minutes. Le bouton Stop reste là, et tout est cumulatif.
+
+# v20 — Le Créateur  # v19 — Le Chat  # v18 — Exploration  # v17-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v20.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v21.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v20 le createur"
+git commit -m "v21 scan turbo heic sd"
 git push
 ```

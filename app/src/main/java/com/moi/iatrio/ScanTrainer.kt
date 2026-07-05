@@ -32,13 +32,13 @@ class ScanTrainer(
 ) {
     @Volatile var cancel = false
 
-    private val maxImages = 300
-    private val maxTexts = 60
-    private val maxAudio = 60
-    private val max3d = 40
+    private var maxImages = 1000
+    private var maxTexts = 200
+    private var maxAudio = 200
+    private var max3d = 60
 
-    private val imgExt = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif")
-    private val audioExt = setOf("mp3", "flac", "ogg", "m4a", "aac", "opus")
+    private val imgExt = setOf("jpg", "jpeg", "png", "webp", "bmp", "gif", "heic", "heif")
+    private val audioExt = setOf("mp3", "flac", "ogg", "m4a", "aac", "opus", "mp4", "3gp", "webm", "mkv", "amr")
     private val d3Ext = setOf("obj", "stl")
     private val txtExt = setOf(
         "txt", "md", "kt", "java", "py", "js", "ts", "jsx", "tsx", "html", "css",
@@ -54,7 +54,8 @@ class ScanTrainer(
     fun scan(treeUri: Uri, onProgress: (String) -> Unit, onDone: (String) -> Unit) {
         cancel = false
         nImg = 0; nTxt = 0; nAud = 0; n3d = 0; visited = 0
-        visitLimit = 4000
+        maxImages = 1000; maxTexts = 200; maxAudio = 200; max3d = 60
+        visitLimit = 25_000
         Thread {
             try {
                 val rootId = DocumentsContract.getTreeDocumentId(treeUri)
@@ -84,6 +85,7 @@ class ScanTrainer(
             while (c.moveToNext()) {
                 if (cancel || full() || visited > visitLimit) return
                 visited++
+                if (visited % 250 == 0) progress(onProgress)
                 val id = c.getString(0)
                 val name = c.getString(1) ?: continue
                 val mime = c.getString(2) ?: ""
@@ -103,23 +105,33 @@ class ScanTrainer(
     fun scanAll(onProgress: (String) -> Unit, onDone: (String) -> Unit) {
         cancel = false
         nImg = 0; nTxt = 0; nAud = 0; n3d = 0; visited = 0
-        visitLimit = 25_000   // scan complet : on visite beaucoup plus de fichiers
+        maxImages = 3000; maxTexts = 400; maxAudio = 400; max3d = 100
+        visitLimit = 100_000   // scan complet : on visite énormément de fichiers
         Thread {
             try {
-                val roots = mutableListOf<File>()
-                val main = File("/storage/emulated/0")
-                if (main.canRead()) roots.add(main)
-                // Cartes SD / USB : /storage/XXXX-XXXX
+                val candidates = LinkedHashSet<File>()
+                File("/storage/emulated/0").takeIf { it.exists() }?.let { candidates.add(it) }
+                // Cartes SD / USB visibles dans /storage
                 File("/storage").listFiles()?.forEach {
-                    if (it.isDirectory && it.name != "emulated" && it.name != "self" && it.canRead())
-                        roots.add(it)
+                    if (it.isDirectory && it.name != "emulated" && it.name != "self") candidates.add(it)
                 }
+                // Méthode fiable : remonter depuis les dossiers de l'app sur chaque volume
+                try {
+                    activity.getExternalFilesDirs(null)?.forEach { d ->
+                        d?.absolutePath?.substringBefore("/Android/")?.let { pth ->
+                            if (pth.isNotBlank()) candidates.add(File(pth))
+                        }
+                    }
+                } catch (e: Exception) { }
+                val roots = candidates.filter { it.isDirectory && it.canRead() }
                 if (roots.isEmpty()) {
                     activity.runOnUiThread { onDone("Aucun stockage lisible — as-tu accordé « Accès à tous les fichiers » ?") }
                     return@Thread
                 }
-                for (r in roots) walkFile(r, if (r.name == "0") "telephone" else "carte-sd", onProgress)
-                activity.runOnUiThread { onDone(doneMsg() + " (${roots.size} stockage(s) parcourus)") }
+                val names = roots.joinToString(", ") { if (it.path.contains("emulated")) "téléphone" else "carte SD (${it.name})" }
+                activity.runOnUiThread { onProgress("${roots.size} stockage(s) détecté(s) : $names — je fouille...") }
+                for (r in roots) walkFile(r, if (r.path.contains("emulated")) "telephone" else "carte-sd", onProgress)
+                activity.runOnUiThread { onDone(doneMsg() + " ($names)") }
             } catch (e: Exception) {
                 activity.runOnUiThread { onDone("Erreur : ${e.message}") }
             }
@@ -138,6 +150,7 @@ class ScanTrainer(
                 walkFile(f, name, onProgress)
             } else {
                 visited++
+                if (visited % 250 == 0) progress(onProgress)
                 dispatch(name, label, onProgress,
                     streamProvider = { FileInputStream(f) },
                     audioSource = { decodeCompressedPath(f.absolutePath) })

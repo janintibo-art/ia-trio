@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Shader
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -147,6 +149,166 @@ class Creator {
         paint.style = Paint.Style.FILL
         repeat(size) {
             paint.color = Color.argb(rnd.nextInt(28), 255, 255, 255)
+            canvas.drawCircle(rnd.nextFloat() * size, rnd.nextFloat() * size, 1f, paint)
+        }
+        return bmp
+    }
+
+    // ==================== COLLAGE : TES vraies photos, structurées ====================
+    /**
+     * Le collagiste discipliné — même recette que le remix musical :
+     * 1. RÔLES : la photo la plus douce = FOND, la plus colorée = POINT FOCAL,
+     *    les autres = TUILES de la mosaïque.
+     * 2. MOTIF : un agencement de grille composé une fois puis RÉPÉTÉ
+     *    (rangées décalées façon briques, respirations).
+     * 3. HARMONIE : toutes les tuiles sont teintées vers la palette d'une
+     *    image « tonique » — l'équivalent visuel de la transposition :
+     *    c'est ce qui unifie le collage au lieu d'un patchwork qui jure.
+     */
+    fun makeCollage(
+        prompt: String,
+        images: List<Bitmap>,
+        creativity: Int = 50,
+        thought: String = "",
+        size: Int = 1024
+    ): Bitmap {
+        val seed = prompt.trim().lowercase().hashCode().toLong()
+        val rnd = Random(seed)
+
+        // ===== ANALYSE : rôles par douceur / couleur =====
+        fun stats(b: Bitmap): Pair<Double, Double> {   // (saturation moyenne, détail)
+            var sat = 0.0; var det = 0.0; var prev = 0.0; var n = 0
+            val hsv = FloatArray(3)
+            val step = (b.width / 24).coerceAtLeast(1)
+            var y = 0
+            while (y < b.height) {
+                var x = 0
+                while (x < b.width) {
+                    val c = b.getPixel(x, y)
+                    Color.colorToHSV(c, hsv)
+                    sat += hsv[1]
+                    val lum = 0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)
+                    det += kotlin.math.abs(lum - prev); prev = lum
+                    n++; x += step
+                }
+                y += step
+            }
+            return Pair(sat / n, det / n)
+        }
+        val analyzed = images.map { Pair(it, stats(it)) }
+        val background = analyzed.minByOrNull { it.second.second }!!.first     // la plus douce
+        val focal = analyzed.maxByOrNull { it.second.first }!!.first           // la plus colorée
+        val tiles = analyzed.map { it.first }.filter { it !== background }.ifEmpty { images }
+
+        // ===== LA TONIQUE : palette de l'image focale =====
+        fun keyColors(b: Bitmap): List<Int> {
+            val out = ArrayList<Int>()
+            for (qy in 0 until 2) for (qx in 0 until 2) {
+                var r = 0L; var g = 0L; var bl = 0L; var n = 0
+                var y = qy * b.height / 2
+                while (y < (qy + 1) * b.height / 2) {
+                    var x = qx * b.width / 2
+                    while (x < (qx + 1) * b.width / 2) {
+                        val c = b.getPixel(x, y)
+                        r += Color.red(c); g += Color.green(c); bl += Color.blue(c); n++
+                        x += 8
+                    }
+                    y += 8
+                }
+                out.add(Color.rgb((r / n).toInt(), (g / n).toInt(), (bl / n).toInt()))
+            }
+            return out
+        }
+        val keys = keyColors(focal)
+        fun key(i: Int) = keys[i % keys.size]
+        fun withAlpha(c: Int, a: Int) = Color.argb(a, Color.red(c), Color.green(c), Color.blue(c))
+
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        fun drawCover(b: Bitmap, dst: RectF) {   // recadrage centré qui remplit
+            val side = minOf(b.width, b.height)
+            val sx = (b.width - side) / 2; val sy = (b.height - side) / 2
+            canvas.drawBitmap(b, Rect(sx, sy, sx + side, sy + side), dst, paint)
+        }
+
+        // ===== 1. LE FOND : ta photo la plus douce, assombrie et teintée =====
+        drawCover(background, RectF(0f, 0f, size.toFloat(), size.toFloat()))
+        paint.style = Paint.Style.FILL
+        paint.color = Color.argb(120, 10, 10, 18)
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
+        paint.color = withAlpha(key(0), 40)
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
+
+        // ===== 2. LE MOTIF : une rangée composée, puis répétée (briques) =====
+        val gs = 5 + (creativity / 40)                 // 5 à 7 colonnes
+        val cell = size.toFloat() / gs
+        val song = thought.filter { it.isLetter() }
+        var ci = 0
+        // motif d'une rangée : (colonne, index de tuile, largeur en cellules)
+        val motif = ArrayList<Triple<Int, Int, Int>>()
+        var col = 0
+        while (col < gs) {
+            if (rnd.nextInt(100) < 78) {               // respirations : cases vides
+                val ch = if (song.length > 4) song[ci++ % song.length].code else rnd.nextInt(97, 123)
+                val span = if (creativity > 55 && rnd.nextInt(100) < 22) 2 else 1
+                motif.add(Triple(col, ch % tiles.size, span.coerceAtMost(gs - col)))
+                col += span
+            } else col++
+        }
+        val rows = gs
+        val margin = cell * 0.045f
+        for (row in 1 until rows - 1) {                // on laisse respirer haut et bas
+            val brick = if (row % 2 == 1) cell / 2 else 0f    // décalage façon briques
+            val variation = row % 3 == 2
+            for ((c0, tIdx0, span) in motif) {
+                val tIdx = if (variation) (tIdx0 + 1) % tiles.size else tIdx0
+                val x = c0 * cell + brick
+                if (x + span * cell > size + cell / 2) continue
+                val dst = RectF(x + margin, row * cell + margin,
+                    x + span * cell - margin, (row + 1) * cell - margin)
+                drawCover(tiles[tIdx % tiles.size], dst)
+                // HARMONISATION : voile de la couleur tonique sur chaque tuile
+                paint.color = withAlpha(key(row + c0), 46)
+                canvas.drawRect(dst, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = size / 340f
+                paint.color = withAlpha(key(0), 130)
+                canvas.drawRect(dst, paint)
+                paint.style = Paint.Style.FILL
+            }
+        }
+
+        // ===== 3. LE POINT FOCAL : ta photo la plus vivante, en médaillon =====
+        val fx = size * (if (rnd.nextBoolean()) 0.62f else 0.38f)
+        val fy = size * 0.42f
+        val fr = size * (0.16f + creativity / 900f)
+        val clip = Path().apply { addCircle(fx, fy, fr, Path.Direction.CW) }
+        canvas.save()
+        canvas.clipPath(clip)
+        drawCover(focal, RectF(fx - fr, fy - fr, fx + fr, fy + fr))
+        canvas.restore()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = size / 90f
+        paint.color = withAlpha(key(0), 235)
+        canvas.drawCircle(fx, fy, fr, paint)
+        paint.strokeWidth = size / 240f
+        paint.color = Color.argb(160, 255, 255, 255)
+        canvas.drawCircle(fx, fy, fr + size / 60f, paint)
+        paint.style = Paint.Style.FILL
+
+        // ===== 4. FINITIONS : vignettage + grain =====
+        for (i in 5 downTo 1) {
+            paint.color = Color.argb(6 + i * 4, 0, 0, 0)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = size * 0.02f * i
+            canvas.drawRect(paint.strokeWidth / 2, paint.strokeWidth / 2,
+                size - paint.strokeWidth / 2, size - paint.strokeWidth / 2, paint)
+        }
+        paint.style = Paint.Style.FILL
+        repeat(size / 2) {
+            paint.color = Color.argb(rnd.nextInt(22), 255, 255, 255)
             canvas.drawCircle(rnd.nextFloat() * size, rnd.nextFloat() * size, 1f, paint)
         }
         return bmp

@@ -1,6 +1,7 @@
 package com.moi.iatrio
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import java.io.File
 import kotlin.math.cos
@@ -17,6 +18,39 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     private val net = NeuralNet(nIn, if (tf != null) 64 else 48)
     private val file = File(dir, if (tf != null) "image_tf.net" else "image.net")
     private val samples = File(dir, if (tf != null) "samples_img_tf.txt" else "samples_img.txt")
+    // BANQUE D'IMAGES RÉELLES : vraies vignettes de TES photos (128x128 JPEG)
+    private val imgClipDir = File(dir, "imgclips").apply { mkdirs() }
+    private var imgClipIdx = (imgClipDir.listFiles()?.size ?: 0)
+
+    private fun rememberImage(bmp: Bitmap, label: String) {
+        try {
+            val thumb = Bitmap.createScaledBitmap(bmp, 128, 128, true)
+            val safe = label.lowercase().replace(Regex("[^a-z0-9_-]"), "").ifBlank { "image" }
+            val f = File(imgClipDir, "${safe}__${imgClipIdx++}.jpg")
+            f.outputStream().use { thumb.compress(Bitmap.CompressFormat.JPEG, 82, it) }
+            val all = imgClipDir.listFiles()?.sortedBy { it.lastModified() } ?: return
+            if (all.size > 400) all.take(all.size - 400).forEach { it.delete() }
+        } catch (e: Exception) { }
+    }
+
+    /** Vraies photos correspondant au texte (par étiquette). */
+    fun matchImages(prompt: String, max: Int = 16): List<Bitmap> {
+        val words = prompt.lowercase().split(Regex("[^\\p{L}0-9]+")).filter { it.length > 2 }
+        val files = imgClipDir.listFiles()?.filter { f ->
+            val l = f.name.substringBefore("__").lowercase()
+            words.any { w -> l.contains(w) || w.contains(l) }
+        } ?: emptyList()
+        return files.shuffled().take(max).mapNotNull { loadThumb(it) }
+    }
+
+    /** N'importe quelles photos de ta banque (mélange). */
+    fun anyImages(max: Int = 16): List<Bitmap> =
+        (imgClipDir.listFiles()?.toList() ?: emptyList()).shuffled().take(max).mapNotNull { loadThumb(it) }
+
+    fun imageCount(): Int = imgClipDir.listFiles()?.size ?: 0
+
+    private fun loadThumb(f: File): Bitmap? = try { BitmapFactory.decodeFile(f.absolutePath) } catch (e: Exception) { null }
+
     private val paletteFile = File(dir, "palette_img.txt")
     // Mémoire des couleurs : moyenne 8x8 RGB par étiquette (label -> (nb, 192 valeurs))
     private val palettes = HashMap<String, Pair<Int, DoubleArray>>()
@@ -120,6 +154,7 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     private fun feat(bmp: Bitmap): DoubleArray = tf?.logits(bmp) ?: features(bmp)
 
     fun learn(bmp: Bitmap, label: String) {
+        rememberImage(bmp, label)              // vraie vignette pour le collage
         rememberPalette(features(bmp), label)
         if (tf != null) {
             val f = tf.logits(bmp)
@@ -145,7 +180,7 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     fun usingTF(): Boolean = tf != null
     fun summary() = net.summary()
     fun labels(): List<String> = net.labels.toList()
-    fun forget() { net.reset(); palettes.clear(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete(); if (paletteFile.exists()) paletteFile.delete() }
+    fun forget() { net.reset(); palettes.clear(); if (file.exists()) file.delete(); if (samples.exists()) samples.delete(); if (paletteFile.exists()) paletteFile.delete(); imgClipDir.listFiles()?.forEach { it.delete() } }
 }
 
 /**

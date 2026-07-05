@@ -903,7 +903,8 @@ class MainActivity : Activity() {
             "\u2022 La vision en direct alimente aussi « Penser ensemble » (l'orchestrateur).")
         tutoCard(Color.parseColor("#D946EF"), "\u2728  Créer : texte \u2192 image, musique, code",
             "Tes mots deviennent des œuvres, 100% sur ton téléphone.\n\n" +
-            "\u2022 \uD83D\uDDBC IMAGE : art génératif — le texte choisit la palette, les formes, la symétrie. Même texte = même image, à jamais. Change UN mot et tout change.\n" +
+            "\u2022 \uD83D\uDDBC COLLAGE DE TES VRAIES PHOTOS : l'IA garde une vignette réelle de chaque image apprise (banque 400). Puis elle assemble comme un artiste : ta photo la plus DOUCE devient le fond, la plus COLORÉE le médaillon focal, les autres des tuiles en briques — motif répété avec respirations, et TOUTES les tuiles sont teintées vers la palette de l'image tonique (l'harmonie visuelle, comme la transposition en musique). Écris « plage » pour un collage de tes photos de plage. Le dessin abstrait reste le repli si la banque est vide.\n" +
+            "\u2022 \uD83D\uDDBC IMAGE (repli) : art génératif — le texte choisit la palette, les formes, la symétrie. Même texte = même image, à jamais. Change UN mot et tout change.\n" +
             "\u2022 \uD83C\uDFB5 MUSIQUE : vraie synthèse — le texte choisit la gamme (majeure=joyeux, mineure=mélancolique, pentatonique=planant, orientale=mystérieux), le tempo et la mélodie. Sauvée en WAV.\n" +
             "\u2022 \uD83D\uDCBB CODE : ton IA code locale génère dans TON style — ou le cerveau distant s'il est activé (qualité pro).\n" +
             "\u2022 Tout est enregistré dans Download/IATrio/creations/ (avec la permission fichiers).\n\n" +
@@ -1309,23 +1310,37 @@ class MainActivity : Activity() {
         if (t.isEmpty()) return toast("Écris quelques mots d'abord")
         createOut.visibility = View.GONE
         Thread {
-            val learned = imageBrain.matchPalettes(t)
-            val bmp = creator.makeImage(t, 768, learned)
-            val memo = if (learned.isNotEmpty())
-                " (peinte avec mes souvenirs de : ${learned.joinToString(", ") { it.first }})" else ""
-
-            var saved = ""
+            // PRIORITÉ : collage de tes VRAIES photos
+            val bank = imageBrain.matchImages(t).ifEmpty { imageBrain.anyImages() }
+            val thought = if (codeBrain.size() > 0) codeBrain.complete(t.take(20), 60, 60) else ""
+            val bmp: android.graphics.Bitmap
+            val memo: String
+            if (bank.size >= 4) {
+                bmp = creator.makeCollage(t, bank, profile.creativity, thought)
+                memo = " COLLAGE de tes vraies photos (${bank.size} images, ${imageBrain.imageCount()} en banque) !"
+            } else {
+                val learned = imageBrain.matchPalettes(t)
+                bmp = creator.makeImage(t, 768, learned)
+                memo = if (learned.isNotEmpty())
+                    " (peinte avec mes souvenirs de : ${learned.joinToString(", ") { it.first }} — scanne tes photos pour un vrai collage !)"
+                else " (Scanne tes photos pour que je fasse des collages de TES images !)"
+            }
+            val base = "image_${stamp()}"
+            var savedOk = false
             try {
                 creationsDir()?.let { d ->
-                    val f = File(d, "image_${stamp()}.png")
-                    f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 95, it) }
-                    saved = " Enregistrée dans Download/IATrio/creations/"
+                    File(d, "$base.png").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 95, it) }
+                    savedOk = true
                 }
             } catch (e: Exception) { }
             runOnUiThread {
                 createImg.setImageBitmap(bmp)
                 createImg.visibility = View.VISIBLE
-                toast("Image créée !$memo$saved")
+                createStatus.text = if (savedOk)
+                    "\uD83D\uDCBE $base.png\n\uD83D\uDCC2 Download/IATrio/creations/"
+                else
+                    "\u26A0 Fichier NON sauvegardé : autorise « Accès à tous les fichiers » (onglet IA \u2192 bouton TOUT scanner), puis regénère."
+                toast("\uD83D\uDDBC$memo")
             }
         }.start()
     }

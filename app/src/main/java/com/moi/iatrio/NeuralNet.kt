@@ -75,6 +75,27 @@ class NeuralNet(private val nIn: Int, private val nHid: Int) {
         return Pair(labels[best], o[best])
     }
 
+    /** Les k meilleures hypothèses, triées par confiance. */
+    fun predictTop(x: DoubleArray, k: Int = 3): List<Pair<String, Double>> {
+        if (labels.isEmpty()) return emptyList()
+        val (_, o) = forward(x)
+        return labels.indices.sortedByDescending { o[it] }.take(k).map { Pair(labels[it], o[it]) }
+    }
+
+    /**
+     * Entraînement par lot : plusieurs passes sur TOUS les exemples, mélangés
+     * à chaque passe, avec un taux d'apprentissage dégressif. C'est la façon
+     * correcte d'apprendre — chaque exemple compte autant que les autres.
+     */
+    fun trainBatch(data: List<Pair<DoubleArray, String>>, passes: Int = 8) {
+        if (data.isEmpty()) return
+        var lr = 0.06
+        repeat(passes) {
+            for ((x, label) in data.shuffled()) train(x, label, lr, 1)
+            lr *= 0.8
+        }
+    }
+
     fun summary(): String =
         if (labels.isEmpty()) "rien appris"
         else labels.indices.joinToString(", ") { "${labels[it]}:${counts[it]}" }

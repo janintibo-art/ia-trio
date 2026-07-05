@@ -378,8 +378,11 @@ class MainActivity : Activity() {
             pill("Deviner", cBlue, cBlueDark) {
                 val b = currentBitmap ?: return@pill toast("Choisis une image")
                 val r = imageBrain.guess(b); orchestrator.lastImage = r
+                val top = imageBrain.guessTop(b)
+                val alt = if (top.size > 1) "\nAussi possible : " + top.drop(1)
+                    .joinToString(" \u00B7 ") { "${it.first} ${(it.second * 100).toInt()}%" } else ""
                 val pre = imageBrain.preKnowledge(b)?.let { "\nBase MobileNet : $it" } ?: ""
-                imgStatus.text = verdict(r, "Je pense :") + pre
+                imgStatus.text = verdict(r, "Je pense :") + alt + pre
                 setConf(imgConf, (r.second * 100).toInt())
             }
         ), lp(10))
@@ -435,8 +438,11 @@ class MainActivity : Activity() {
             pill("Deviner", cPurple, cPurpleDark) {
                 val a = currentAudio ?: return@pill toast("Enregistre un son")
                 val r = audioBrain.guess(a); orchestrator.lastAudio = r
+                val topA = audioBrain.guessTop(a)
+                val altA = if (topA.size > 1) "\nAussi possible : " + topA.drop(1)
+                    .joinToString(" \u00B7 ") { "${it.first} ${(it.second * 100).toInt()}%" } else ""
                 val preA = audioBrain.preKnowledge(a)?.let { "\nBase YAMNet : $it" } ?: ""
-                audStatus.text = verdict(r, "J'entends :") + preA
+                audStatus.text = verdict(r, "J'entends :") + altA + preA
                 setConf(audConf, (r.second * 100).toInt())
             }
         ), lp(10))
@@ -606,6 +612,16 @@ class MainActivity : Activity() {
                 }
             }.start()
         })
+        ce.addView(pill("\uD83C\uDFCB Ré-entraîner tout (consolider)", Color.parseColor("#8B5CF6"), Color.parseColor("#7C3AED")) {
+            examOut.text = "Consolidation en cours... (l'IA révise toute sa mémoire)"
+            Thread {
+                val ri = imageBrain.retrainAll()
+                val ra = audioBrain.retrainAll()
+                runOnUiThread {
+                    examOut.text = "\uD83C\uDFCB Consolidation terminée !\nImages : $ri\nSons : $ra\n\nPasse l'examen pour mesurer le gain \uD83D\uDCC8"
+                }
+            }.start()
+        }, lp(8))
         ce.addView(examOut)
         box.addView(ce, lp(16))
 
@@ -863,6 +879,12 @@ class MainActivity : Activity() {
             "\u2022 Tu peux poser des questions libres au cerveau distant.\n" +
             "\u2022 « Penser ensemble » : il commente ce que tes IA perçoivent et te conseille.\n\n" +
             "VIE PRIVÉE : activé, tes questions partent chez le fournisseur choisi. Désactivé (interrupteur sur off), TOUT reste local. Les mémoires de tes 3 IA ne sont jamais envoyées.")
+        tutoCard(Color.parseColor("#8B5CF6"), "\u26A1  Booster les performances",
+            "Trois mécanismes rendent tes IA plus intelligentes :\n\n" +
+            "\u2022 REPLAY automatique : à chaque nouvel apprentissage, l'IA révise aussi 24 anciens souvenirs — elle n'oublie plus ce qu'elle savait (fini l'oubli catastrophique).\n" +
+            "\u2022 \uD83C\uDFCB RÉ-ENTRAÎNER TOUT (carte Bilan) : consolidation complète — 8 passes mélangées sur toute la mémoire. Lance-le après une grosse session de scan, c'est comme une bonne nuit de sommeil pour le cerveau. Puis passe l'examen : le score grimpe.\n" +
+            "\u2022 TOP 3 : les devinettes montrent maintenant les hypothèses alternatives (« chat 72% \u00B7 chien 18% ») — utile pour repérer les confusions à corriger.\n" +
+            "\u2022 L'IA code utilise un contexte plus long (repli 5\u21924\u21923 caractères) : complétions bien plus cohérentes.")
         tutoCard(Color.parseColor("#8B5CF6"), "\uD83D\uDCCA  Le bilan et l'examen",
             "Comment savoir si tes IA sont bien entraînées ? Fais-les passer l'examen !\n\n" +
             "\u2022 L'app garde un échantillon de tout ce qui est appris (jusqu'à 400 par IA).\n" +

@@ -7,6 +7,7 @@ import kotlin.math.cos
 import kotlin.math.ln
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.random.Random
 
 /**
  * IA n°1 : IMAGES (v2) — couleur RGB + data augmentation.
@@ -57,13 +58,46 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
         }.map { Pair(it.key, it.value.second) }
     }
 
+    // Cache des souvenirs en mémoire vive (pour le replay et le ré-entraînement)
+    private val cache = ArrayList<Pair<String, DoubleArray>>()
+    init {
+        try {
+            if (samples.exists()) for (line in samples.readLines()) {
+                val i = line.indexOf('|'); if (i <= 0) continue
+                val x = line.substring(i + 1).split(",").mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+                if (x.size == nIn) cache.add(Pair(line.substring(0, i), x))
+            }
+        } catch (e: Exception) { }
+    }
+
     private fun remember(x: DoubleArray, label: String) {
+        cache.add(Pair(label, x))
+        while (cache.size > 400) cache.removeAt(0)
         try {
             if (samples.exists() && samples.readLines().size > 400)
                 samples.writeText(samples.readLines().takeLast(300).joinToString("\n") + "\n")
             samples.appendText(label + "|" + x.joinToString(",") + "\n")
         } catch (e: Exception) { }
     }
+
+    /** REPLAY anti-oubli : après chaque nouveauté, on révise 24 vieux souvenirs. */
+    private fun replay() {
+        if (cache.size < 6) return
+        repeat(24) {
+            val (l, x) = cache[Random.nextInt(cache.size)]
+            net.train(x, l, 0.03, 3)
+        }
+    }
+
+    /** Consolidation complète : ré-entraîne le réseau sur TOUTE la mémoire. */
+    fun retrainAll(): String {
+        if (cache.isEmpty()) return "rien en mémoire"
+        net.trainBatch(cache.map { Pair(it.second, it.first) }, 8)
+        net.save(file)
+        return "${cache.size} souvenirs consolidés (8 passes)"
+    }
+
+    fun guessTop(bmp: Bitmap): List<Pair<String, Double>> = net.predictTop(feat(bmp), 3)
 
     /** Examen : l'IA repasse sur tous les échantillons mémorisés. */
     fun exam(): String = examOn(samples, nIn) { net.predict(it).first }
@@ -88,18 +122,17 @@ class ImageBrain(dir: File, private val tf: TFVision? = null) {
     fun learn(bmp: Bitmap, label: String) {
         rememberPalette(features(bmp), label)
         if (tf != null) {
-            // Transfer learning : les caractéristiques MobileNet sont si riches
-            // que la data augmentation n'est plus nécessaire.
             val f = tf.logits(bmp)
             remember(f, label)
-            net.train(f, label)
+            net.train(f, label, 0.05, 25)
         } else {
             remember(features(bmp), label)
-            net.train(features(bmp), label)
-            net.train(features(bmp, mirror = true), label)
-            net.train(features(bmp, bright = 1.25), label)
-            net.train(features(bmp, bright = 0.8), label)
+            net.train(features(bmp), label, 0.05, 15)
+            net.train(features(bmp, mirror = true), label, 0.05, 10)
+            net.train(features(bmp, bright = 1.25), label, 0.05, 8)
+            net.train(features(bmp, bright = 0.8), label, 0.05, 8)
         }
+        replay()   // anti-oubli : on révise les anciens souvenirs
         net.save(file)
     }
 
@@ -126,13 +159,43 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
     private val samples = File(dir, if (tfa != null) "samples_aud_tf.txt" else "samples_aud.txt")
     init { if (file.exists()) net.load(file) }
 
+    private val cache = ArrayList<Pair<String, DoubleArray>>()
+    init {
+        try {
+            if (samples.exists()) for (line in samples.readLines()) {
+                val i = line.indexOf('|'); if (i <= 0) continue
+                val x = line.substring(i + 1).split(",").mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+                if (x.size == nIn) cache.add(Pair(line.substring(0, i), x))
+            }
+        } catch (e: Exception) { }
+    }
+
     private fun remember(x: DoubleArray, label: String) {
+        cache.add(Pair(label, x))
+        while (cache.size > 400) cache.removeAt(0)
         try {
             if (samples.exists() && samples.readLines().size > 400)
                 samples.writeText(samples.readLines().takeLast(300).joinToString("\n") + "\n")
             samples.appendText(label + "|" + x.joinToString(",") + "\n")
         } catch (e: Exception) { }
     }
+
+    private fun replay() {
+        if (cache.size < 6) return
+        repeat(24) {
+            val (l, x) = cache[Random.nextInt(cache.size)]
+            net.train(x, l, 0.03, 3)
+        }
+    }
+
+    fun retrainAll(): String {
+        if (cache.isEmpty()) return "rien en mémoire"
+        net.trainBatch(cache.map { Pair(it.second, it.first) }, 8)
+        net.save(file)
+        return "${cache.size} souvenirs consolidés (8 passes)"
+    }
+
+    fun guessTop(pcm: ShortArray): List<Pair<String, Double>> = net.predictTop(feat(pcm), 3)
 
     /** Examen : l'IA repasse sur tous les échantillons mémorisés. */
     fun exam(): String = examOn(samples, nIn) { net.predict(it).first }
@@ -168,7 +231,8 @@ class AudioBrain(dir: File, private val tfa: TFAudio? = null) {
     fun learn(pcm: ShortArray, label: String) {
         val x = feat(pcm)
         remember(x, label)
-        net.train(x, label)
+        net.train(x, label, 0.05, 25)
+        replay()
         net.save(file)
     }
     fun guess(pcm: ShortArray) = net.predict(feat(pcm))
@@ -209,53 +273,73 @@ internal fun examOn(samples: File, nFeatures: Int, predict: (DoubleArray) -> Str
  * IA n°3 : CODE / TEXTE (v2) — n-gramme + oublier.
  */
 class CodeBrain(dir: File) {
-    private val order = 4
-    private val model = HashMap<String, HashMap<Char, Int>>()
+    // Modèle à REPLI : on essaie d'abord un contexte de 5 caractères (précis),
+    // puis 4, puis 3 (plus général) — complétions bien plus cohérentes.
+    private val orders = intArrayOf(5, 4, 3)
+    private val models = Array(orders.size) { HashMap<String, HashMap<Char, Int>>() }
     private val corpus = File(dir, "code.txt")
     init { if (corpus.exists()) learnInternal(corpus.readText()) }
 
     private fun learnInternal(text: String) {
-        for (i in 0 until text.length - order) {
-            val ctx = text.substring(i, i + order)
-            val next = text[i + order]
-            val m = model.getOrPut(ctx) { HashMap() }
-            m[next] = (m[next] ?: 0) + 1
+        for ((oi, order) in orders.withIndex()) {
+            val m = models[oi]
+            for (i in 0 until text.length - order) {
+                val ctx = text.substring(i, i + order)
+                val next = text[i + order]
+                val mm = m.getOrPut(ctx) { HashMap() }
+                mm[next] = (mm[next] ?: 0) + 1
+            }
         }
     }
 
-    fun learn(text: String) { learnInternal(text); corpus.appendText(text + "\n") }
+    fun learn(text: String) {
+        learnInternal(text)
+        corpus.appendText(text + "\n")
+        // Plafond : au-delà de 500 Ko on garde les 350 derniers Ko et on
+        // reconstruit — la mémoire reste fraîche et rapide.
+        try {
+            if (corpus.length() > 500_000) {
+                val keep = corpus.readText().takeLast(350_000)
+                corpus.writeText(keep)
+                for (m in models) m.clear()
+                learnInternal(keep)
+            }
+        } catch (e: Exception) { }
+    }
 
     /**
-     * creativity 0..100 : à 0 on choisit toujours la suite la plus probable
-     * (texte sage et répétitif), à 100 on tire au sort selon les probabilités
-     * (texte varié et audacieux).
+     * creativity 0..100 : à 0 on choisit toujours la suite la plus probable,
+     * à 100 on tire au sort selon les probabilités.
      */
     fun complete(prompt: String, length: Int = 200, creativity: Int = 50): String {
-        if (model.isEmpty()) return "(rien appris : colle-moi du code d'abord)"
-        var ctx = if (prompt.length >= order) prompt.takeLast(order)
-                  else model.keys.firstOrNull() ?: return ""
+        if (models[0].isEmpty() && models[1].isEmpty()) return "(rien appris : colle-moi du code d'abord)"
         val sb = StringBuilder(prompt)
         repeat(length) {
-            val m = model[ctx] ?: return sb.toString()
+            var m: HashMap<Char, Int>? = null
+            for ((oi, order) in orders.withIndex()) {
+                if (sb.length < order) continue
+                m = models[oi][sb.takeLast(order).toString()]
+                if (m != null) break
+            }
+            if (m == null) return sb.toString()
             val pick: Char = if (Math.random() * 100 >= creativity) {
-                m.maxByOrNull { it.value }!!.key          // choix le plus probable
+                m.maxByOrNull { it.value }!!.key
             } else {
-                val total = m.values.sum()                 // tirage pondéré
+                val total = m.values.sum()
                 var r = (Math.random() * total).toInt()
                 var p = m.keys.first()
                 for ((c, nn) in m) { r -= nn; if (r < 0) { p = c; break } }
                 p
             }
             sb.append(pick)
-            ctx = sb.takeLast(order).toString()
         }
         return sb.toString()
     }
 
-    fun size() = model.size
+    fun size() = models.sumOf { it.size }
     fun corpusExcerpt(maxChars: Int = 3000): String =
         if (corpus.exists()) corpus.readText().take(maxChars) else ""
-    fun forget() { model.clear(); if (corpus.exists()) corpus.delete() }
+    fun forget() { for (m in models) m.clear(); if (corpus.exists()) corpus.delete() }
 }
 
 /**

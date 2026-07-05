@@ -1,35 +1,36 @@
-# Nouveautés v25 — Export MIDI 🎹
+# Nouveautés v26 — Vraie composition 🎼
 
-Chaque composition est maintenant récupérable en fichier MIDI standard pour
-la retravailler dans n'importe quel logiciel de musique.
+Le moteur musical passe de « mélodie sympa » à « vrai morceau ».
 
-- **Fichier .mid généré à chaque création** (à côté du .wav, dans
-  Download/IATrio/creations/) : format MIDI standard (SMF format 0).
-- **Contenu de la partition** :
-  - **Mélodie sur le canal 1** (piano) — toutes les notes que l'IA chante,
-    avec leurs vraies durées (les voyelles longues !) et vélocités.
-  - **Basse sur le canal 2** (basse électrique), dosée par tes graves.
-  - **Tempo inclus** — celui dérivé de la sonorité de ta musique.
-- **Compatible partout** : FL Studio, Ableton, GarageBand, Cubase, MuseScore,
-  LMMS (gratuit sur PC)... Change les instruments, corrige des notes, ajoute
-  des pistes, quantise : l'IA compose, TU produis.
-- Techniquement : la synthèse capture désormais chaque note comme un
-  événement (hauteur MIDI la plus proche, départ, durée, vélocité, canal),
-  et l'app écrit le binaire MIDI complet (delta-times varint, meta tempo,
-  program changes) — zéro dépendance externe.
+- **🎹 Progressions d'accords** : I-V-vi-IV (la pop éternelle), I-vi-IV-V
+  (doo-wop), vi-IV-I-V (émotion), I-IV-I-V (blues) — choisie par la graine.
+  La basse suit les fondamentales, et la mélodie glisse vers les notes
+  d'accord sur les temps forts. C'est CE qui fait que ça sonne juste.
+- **🏗 Structure AABA (8 mesures)** : couplet, couplet, PONT contrasté
+  (registre plus haut, rythme plus dense), retour. Un vrai arc musical.
+- **🥁 Batterie synthétisée** : kick (sinus glissant), caisse claire (bruit +
+  corps), charley (bruit aigu filtré), avec accents, roulements de fin de
+  section, et volume dosé par l'énergie de TA bibliothèque. Exportée sur le
+  **canal 10 MIDI** (notes GM standard 36/38/42) — dans ton DAW, elle arrive
+  directement sur la piste batterie !
+- **🎵 Rythmes vivants** : motifs par mesure (du sage au syncopé), silences
+  musicaux, notes tenues en fin de phrase, la mélodie chante toujours la
+  pensée de l'IA mais l'harmonie la corrige.
+- **✨ La créativité du profil pilote tout** : syncopes, ornements (notes de
+  grâce), audace des écarts. Profil 🎯 Précis = compo sage ; 🎨 Créatif =
+  ça part en impro. Deux profils = deux compositeurs.
+- **🎚 Écho « dotted eighth »** : le delay classique de production, appliqué
+  au mixage final.
+- Morceaux plus longs (8 mesures, ~15-25 s selon le tempo).
 
-Astuce : le .wav te donne le rendu avec la SONORITÉ de ta musique (v24),
-le .mid te donne la PARTITION pour la réinterpréter — les deux ensemble,
-c'est un vrai brouillon de morceau.
-
-# v24 — Sonorités  # v23 — Performances  # v22-v2 — Fondations
+# v25 — Export MIDI  # v24 — Sonorités  # v23 — Performances  # v22-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v25.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v26.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v25 export midi"
+git commit -m "v26 vraie composition"
 git push
 ```

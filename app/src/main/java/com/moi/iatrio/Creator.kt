@@ -164,7 +164,12 @@ class Creator {
      * Composition algorithmique : le texte choisit la gamme, le tempo, la
      * racine et la mélodie (marche aléatoire sur la gamme) + une basse.
      */
-    fun makeMusic(prompt: String, thought: String = "", timbres: List<Pair<String, DoubleArray>> = emptyList()): ShortArray {
+    fun makeMusic(
+        prompt: String,
+        thought: String = "",
+        timbres: List<Pair<String, DoubleArray>> = emptyList(),
+        creativity: Int = 50
+    ): ShortArray {
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
         val scales = listOf(
@@ -174,10 +179,9 @@ class Creator {
             listOf(0, 2, 3, 6, 7, 8, 11)    // orientale : mystérieux
         )
         val scale = scales[rnd.nextInt(scales.size)]
+        val ns = scale.size
 
-        // ===== LA SONORITÉ DE TA MUSIQUE =====
-        // Empreinte spectrale moyenne des morceaux appris (32 bandes) :
-        // elle façonne les harmoniques, la hauteur, le tempo et l'attaque.
+        // ===== SONORITÉ DE TA MUSIQUE (empreinte spectrale) =====
         val tb: DoubleArray? = if (timbres.isEmpty()) null else {
             val avg = DoubleArray(32)
             for ((_, t) in timbres) for (i in 0 until 32) avg[i] += t[i] / timbres.size
@@ -185,13 +189,11 @@ class Creator {
             if (mx > 0) for (i in avg.indices) avg[i] /= mx
             avg
         }
-        // Centre spectral : où se concentre l'énergie (grave 0 ... aigu 31)
         val centroid = tb?.let { t ->
             var num = 0.0; var den = 1e-9
             for (i in t.indices) { num += i * t[i]; den += t[i] }
             num / den
         } ?: 10.0
-        // Harmoniques des notes tirées de l'empreinte (repli : timbre doux)
         val harm = DoubleArray(8) { k ->
             val v = tb?.get(((k + 1) * 3).coerceAtMost(31)) ?: when (k) {
                 0 -> 0.6; 1 -> 0.25; 2 -> 0.1; else -> 0.0
@@ -200,18 +202,21 @@ class Creator {
         }
         run { val s = harm.sum(); if (s > 0) for (i in harm.indices) harm[i] = harm[i] / s * 0.95 }
 
-        val rootMul = (0.7 + centroid / 16.0).coerceIn(0.7, 2.0)      // musique brillante -> plus haut
+        val rootMul = (0.7 + centroid / 16.0).coerceIn(0.7, 2.0)
         val root = 220.0 * 2.0.pow(rnd.nextInt(8) / 12.0) * rootMul
         val bpm = (84 + rnd.nextInt(56) + ((centroid - 10) * 3).toInt()).coerceIn(70, 160)
-        val decayRate = (2.0 + centroid * 0.15)                        // brillant = plus percussif
-        val noteDur = 60.0 / bpm / 2.0            // croches
-        val nNotes = 48
-        val total = (rate * noteDur * nNotes).toInt() + rate / 2
+        val decayRate = (2.0 + centroid * 0.15)
+        val drumVol = tb?.let { 0.25 + (it[20] + it[25] + it[30]) / 3.0 * 0.5 } ?: 0.4
+
+        // ===== STRUCTURE : 8 mesures AABA, 8 croches par mesure =====
+        val bars = 8
+        val slotsPerBar = 8
+        val slotDur = 60.0 / bpm / 2.0
+        val total = (rate * slotDur * bars * slotsPerBar).toInt() + rate
         val out = DoubleArray(total)
 
         val events = ArrayList<NoteEvent>()
         fun addNote(freq: Double, start: Int, durS: Double, vol: Double, ch: Int = 0) {
-            // partition : note MIDI la plus proche de la fréquence
             val midi = (69 + 12 * ln(freq / 440.0) / ln(2.0)).roundToInt().coerceIn(0, 127)
             events.add(NoteEvent(midi, start.toDouble() / rate, durS, (vol * 220).toInt().coerceIn(30, 120), ch))
             val n = (rate * durS).toInt()
@@ -219,7 +224,7 @@ class Creator {
                 val idx = start + i
                 if (idx >= total) break
                 val t = i.toDouble() / rate
-                val env = (1 - exp(-t * 60)) * exp(-t * decayRate)   // attaque + déclin façonné
+                val env = (1 - exp(-t * 60)) * exp(-t * decayRate)
                 var s = 0.0
                 for (k in harm.indices) {
                     if (harm[k] < 0.01) continue
@@ -229,41 +234,117 @@ class Creator {
             }
         }
 
-        var degree = rnd.nextInt(scale.size)
-        var octave = 1
-        val song = thought.filter { it.code in 32..1000 }
-        for (k in 0 until nNotes) {
-            val start = (k * noteDur * rate).toInt()
-            if (song.length > 8) {
-                // L'IA CHANTE SA PENSÉE : chaque caractère devient une note
-                val ch = song[k % song.length]
-                if (ch == ' ' || ch == '.') {
-                    // respiration
-                } else {
-                    degree = ch.code % scale.size
-                    octave = when {
-                        ch.isUpperCase() -> 2
-                        ch in "aeiouyàéèêô" -> 1
-                        else -> 1 + (ch.code / 7) % 2
-                    }.coerceIn(0, 2)
-                    val freq = root * 2.0.pow(octave + scale[degree] / 12.0)
-                    val long = ch in "aeiouyàéèêô"   // les voyelles durent plus longtemps
-                    addNote(freq, start, noteDur * (if (long) 1.8 else 0.95), 0.5)
-                }
-            } else {
-                // marche aléatoire classique si la mémoire est vide
-                degree += rnd.nextInt(5) - 2
-                if (degree < 0) { degree += scale.size; octave = maxOf(0, octave - 1) }
-                if (degree >= scale.size) { degree -= scale.size; octave = minOf(2, octave + 1) }
-                val freq = root * 2.0.pow(octave + scale[degree] / 12.0)
-                if (rnd.nextInt(100) < 85) addNote(freq, start, noteDur * 0.95, 0.5)
+        // ===== BATTERIE synthétisée (exportée canal 10 MIDI) =====
+        fun addKick(start: Int, vol: Double) {
+            events.add(NoteEvent(36, start.toDouble() / rate, 0.12, (vol * 220).toInt().coerceIn(30, 127), 9))
+            val n = (rate * 0.13).toInt()
+            for (i in 0 until n) {
+                val idx = start + i; if (idx >= total) break
+                val t = i.toDouble() / rate
+                val f = 110.0 * exp(-t * 22) + 42.0
+                out[idx] += sin(2 * PI * f * t) * exp(-t * 26) * vol
             }
-            // basse sur les temps, dosée par les graves de ta musique
-            val bassVol = tb?.let { 0.15 + (it[0] + it[1] + it[2]) / 3.0 * 0.35 } ?: 0.3
-            if (k % 4 == 0) addNote(root / 2, start, noteDur * 3.0, bassVol, ch = 1)
+        }
+        fun addSnare(start: Int, vol: Double) {
+            events.add(NoteEvent(38, start.toDouble() / rate, 0.1, (vol * 220).toInt().coerceIn(30, 127), 9))
+            val n = (rate * 0.11).toInt()
+            var noise = 0.0
+            for (i in 0 until n) {
+                val idx = start + i; if (idx >= total) break
+                val t = i.toDouble() / rate
+                noise = noise * 0.4 + (rnd.nextDouble() * 2 - 1) * 0.6   // bruit clair
+                out[idx] += (noise * 0.8 + sin(2 * PI * 185 * t) * 0.3) * exp(-t * 32) * vol
+            }
+        }
+        fun addHat(start: Int, vol: Double) {
+            events.add(NoteEvent(42, start.toDouble() / rate, 0.03, (vol * 220).toInt().coerceIn(20, 110), 9))
+            val n = (rate * 0.035).toInt()
+            var prev = 0.0
+            for (i in 0 until n) {
+                val idx = start + i; if (idx >= total) break
+                val w = rnd.nextDouble() * 2 - 1
+                out[idx] += (w - prev) * exp(-i.toDouble() / rate * 90) * vol   // bruit aigu
+                prev = w
+            }
         }
 
-        // normalisation + partition disponible pour l'export MIDI
+        // ===== HARMONIE : progressions d'accords classiques =====
+        val progressions = listOf(
+            listOf(0, 4, 5, 3),   // I-V-vi-IV : la pop éternelle
+            listOf(0, 5, 3, 4),   // I-vi-IV-V : doo-wop
+            listOf(5, 3, 0, 4),   // vi-IV-I-V : émotion
+            listOf(0, 3, 0, 4)    // I-IV-I-V : blues-ish
+        )
+        val prog = progressions[rnd.nextInt(progressions.size)]
+
+        // Motifs rythmiques (1 = attaque de note), du sage au syncopé
+        val calm = listOf("10101010", "10100010", "10001000", "10100100")
+        val spicy = listOf("10110100", "01101010", "10010110", "11010010")
+
+        val song = thought.filter { it.code in 32..1000 }
+        var degree = rnd.nextInt(ns)
+        var charIdx = 0
+        var slotGlobal = 0
+
+        for (bar in 0 until bars) {
+            val sectionB = bar in 4..5                       // le pont AABA
+            val chordDeg = prog[bar % prog.size]
+            val chordTones = setOf(chordDeg % ns, (chordDeg + 2) % ns, (chordDeg + 4) % ns)
+            val spice = creativity + (if (sectionB) 25 else 0)
+            val pattern = if (rnd.nextInt(100) < spice) spicy[rnd.nextInt(spicy.size)]
+                          else calm[rnd.nextInt(calm.size)]
+
+            // Basse : fondamentale de l'accord, temps 1 et 3
+            val bassFreq = root / 2 * 2.0.pow(scale[chordDeg % ns] / 12.0)
+            val bassVol = tb?.let { 0.15 + (it[0] + it[1] + it[2]) / 3.0 * 0.35 } ?: 0.28
+            addNote(bassFreq, (slotGlobal * slotDur * rate).toInt(), slotDur * 3.5, bassVol, ch = 1)
+            addNote(bassFreq, ((slotGlobal + 4) * slotDur * rate).toInt(), slotDur * 3.5, bassVol * 0.9, ch = 1)
+
+            for (s in 0 until slotsPerBar) {
+                val start = (slotGlobal * slotDur * rate).toInt()
+                // batterie
+                if (s == 0 || s == 4) addKick(start, drumVol)
+                if (s == 2 || s == 6) addSnare(start, drumVol * 0.9)
+                addHat(start, drumVol * (if (s % 2 == 0) 0.5 else 0.3))
+                // fin de section : petit roulement
+                if (bar % 4 == 3 && s >= 6 && creativity > 30) addSnare(start, drumVol * 0.6)
+
+                // mélodie
+                if (pattern[s] == '1') {
+                    val ch = if (song.length > 8) song[charIdx++ % song.length] else ('a' + rnd.nextInt(26))
+                    if (ch == ' ' || ch == '.') { slotGlobal++; continue }   // respiration
+                    // la pensée de l'IA guide le mouvement, l'harmonie le corrige
+                    degree += ((ch.code % 5) - 2)
+                    while (degree < 0) degree += ns
+                    degree %= ns
+                    if (s % 4 == 0 && degree !in chordTones) {
+                        // temps fort : on glisse vers la note d'accord la plus proche
+                        degree = chordTones.minByOrNull { d -> minOf((d - degree + ns) % ns, (degree - d + ns) % ns) } ?: degree
+                    }
+                    val octave = (if (sectionB) 2 else 1) + (if (ch.isUpperCase()) 1 else 0)
+                    val freq = root * 2.0.pow(octave.coerceIn(0, 3) + scale[degree] / 12.0)
+                    // durée : jusqu'à la prochaine attaque ; longue en fin de phrase
+                    var len = 1
+                    var q = s + 1
+                    while (q < slotsPerBar && pattern[q] == '0') { len++; q++ }
+                    val phraseEnd = (bar % 2 == 1 && q >= slotsPerBar)
+                    val dur = slotDur * (if (phraseEnd) len + 2.0 else len * 0.92)
+                    addNote(freq, start, dur, 0.5)
+                    // ornement : petite note de grâce si l'IA est créative
+                    if (rnd.nextInt(200) < creativity) {
+                        val gDeg = (degree + 1) % ns
+                        val gFreq = root * 2.0.pow(octave.coerceIn(0, 3) + scale[gDeg] / 12.0)
+                        addNote(gFreq, (start - rate * slotDur * 0.12).toInt().coerceAtLeast(0), slotDur * 0.12, 0.3)
+                    }
+                }
+                slotGlobal++
+            }
+        }
+
+        // ===== ÉCHO "dotted eighth" : le delay classique de la production =====
+        val delay = (slotDur * 1.5 * rate).toInt()
+        for (i in delay until total) out[i] += out[i - delay] * 0.26
+
         lastEvents = events
         lastBpm = bpm
         var mx = 1e-9

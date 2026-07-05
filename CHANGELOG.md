@@ -1,28 +1,37 @@
-# Nouveautés v28 — Réglages musicaux & fichiers visibles 🎚
+# Nouveautés v29 — Le remix apprend l'harmonie 🎼
 
-- **🎚 Réglages de création** (deux listes au-dessus des boutons) :
-  - **Tempo** : Auto, ou fixe de 70 à 160 BPM.
-  - **Longueur** : Court (4 mesures), Normal (8), Long (16), Très long (32)
-    — en 70 BPM, « Très long » ≈ 2 minutes de musique.
-  - Appliqués au REMIX comme au synthé ; la structure AABA (le pont
-    contrasté) s'adapte automatiquement à la longueur choisie.
-- **💾 Fichiers enfin visibles** : après chaque génération, le statut affiche
-  les noms EXACTS créés — « musique_0705_1432.wav (audio) +
-  musique_0705_1432.mid (partition MIDI) → Download/IATrio/creations/ ».
-- **⚠ Fini les sauvegardes silencieusement ratées** : si la permission
-  « Accès à tous les fichiers » manque, le statut te le dit clairement et
-  t'indique où l'activer (avant, les fichiers n'étaient simplement pas
-  écrits, sans prévenir — c'est pour ça que tu ne trouvais pas le MIDI !).
-- Nouvelle section tutoriel : « Où sont mes fichiers ? ».
+Le remix passait pour déstructuré : trois causes, trois remèdes de producteur.
 
-# v27 — Remix  # v26 — Composition  # v25 — MIDI  # v24-v2 — Fondations
+- **🎛 Des RÔLES fixes (un seul « kit »)** : l'IA analyse tes extraits
+  (taux de passage à zéro = brillance) et assigne pour TOUT le morceau :
+  - l'extrait le plus grave → **la basse**, filtrée passe-bas 200 Hz,
+    posée sur les temps 1 et 3 ;
+  - le plus brillant → **le charley** (tranches de 45 ms sur les croches) ;
+  - un extrait sombre et percutant → **le kick** (+ contretemps « caisse
+    claire » pitché) ;
+  - trois extraits médiums → **les chops mélodiques** ;
+  - un extrait → **la nappe de fond** (ralenti d'une octave).
+  Même kit du début à la fin = cohérence sonore immédiate.
+- **🔁 UN motif, RÉPÉTÉ** : la mesure de chops est composée une seule fois
+  (guidée par la pensée de l'IA) puis répétée — avec une petite variation
+  toutes les 4 mesures et un motif différent pour le pont. La répétition,
+  c'est ce qui transforme des sons en musique.
+- **🎹 TRANSPOSITION HARMONIQUE** : chaque mesure, tout le motif (basse,
+  chops, nappe) est transposé selon la progression d'accords (I-V-vi-IV,
+  doo-wop...), repliée sur ±6 demi-tons pour éviter les sauts. C'est LÀ que
+  naît l'harmonie : les mesures se répondent au lieu de se percuter.
+- **🎚 Dynamique de structure** : la nappe se tait pendant le pont (tension)
+  et revient (résolution) ; le pont monte à l'octave ; écho réduit (0,14)
+  pour la clarté.
+
+# v28 — Réglages  # v27 — Remix  # v26 — Composition  # v25-v2
 
 ## Mettre à jour
 
 ```bash
-unzip -o /storage/emulated/0/Download/ia-trio-v28.zip -d ~/
+unzip -o /storage/emulated/0/Download/ia-trio-v29.zip -d ~/
 cd ~/ia-trio
 git add .
-git commit -m "v28 reglages tempo longueur fichiers"
+git commit -m "v29 remix harmonique"
 git push
 ```

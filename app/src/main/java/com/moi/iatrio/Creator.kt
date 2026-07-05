@@ -444,26 +444,29 @@ class Creator {
         return pcm
     }
 
-    // ==================== REMIX : TES vrais morceaux, redécoupés ====================
+    // ==================== REMIX HARMONIQUE : TES sons, structurés ====================
     /**
-     * Le sampler : découpe et réarrange les EXTRAITS RÉELS de ta musique
-     * (façon MPC). Rien n'est synthétisé : chaque son vient de tes fichiers.
-     * - chops rythmiques pitchés (varispeed), parfois inversés si créatif
-     * - nappe de fond : ton morceau ralenti d'une octave
-     * - basse : ton son pitché vers le grave + filtre
+     * Le sampler discipliné : comme un vrai producteur.
+     * 1. RÔLES : chaque extrait reçoit un rôle fixe pour tout le morceau
+     *    (basse = le plus grave + filtre, kick/charley = les plus percussifs,
+     *    3 chops mélodiques). Un seul "kit" = cohérence.
+     * 2. MOTIF : UNE mesure est composée, puis RÉPÉTÉE avec variations
+     *    (répétition = musique). Le pont (section B) a son propre motif.
+     * 3. HARMONIE : tout le motif est transposé chaque mesure selon la
+     *    progression d'accords (I-V-vi-IV...) — c'est là que ça sonne juste.
      */
     fun makeRemix(
         prompt: String,
         clips: List<ShortArray>,
         creativity: Int = 50,
         thought: String = "",
-        bpmOverride: Int = 0,      // 0 = automatique
+        bpmOverride: Int = 0,
         barsCount: Int = 8
     ): ShortArray {
         val srate = 16000
         val seed = prompt.trim().lowercase().hashCode().toLong()
         val rnd = Random(seed)
-        val bpm = if (bpmOverride > 0) bpmOverride else 88 + rnd.nextInt(48)
+        val bpm = if (bpmOverride > 0) bpmOverride else 88 + rnd.nextInt(40)
         val slotDur = 60.0 / bpm / 2.0
         val bars = barsCount.coerceIn(2, 64)
         val slotsPerBar = 8
@@ -471,29 +474,46 @@ class Creator {
         val outL = DoubleArray(n); val outR = DoubleArray(n)
         val events = ArrayList<NoteEvent>()
 
+        // ===== ANALYSE : attribuer les RÔLES aux extraits =====
+        fun zcr(c: ShortArray): Double {
+            var z = 0
+            for (i in 1 until c.size) if ((c[i] >= 0) != (c[i - 1] >= 0)) z++
+            return z.toDouble() / c.size
+        }
+        val byBright = clips.sortedBy { zcr(it) }
+        val bassClip = byBright.first()                                  // le plus grave
+        val hatClip = byBright.last()                                    // le plus brillant
+        val kickClip = byBright[byBright.size / 4]                       // sombre et percutant
+        val mid = byBright.drop(1).dropLast(1).ifEmpty { clips }
+        val chops = List(3) { mid[(it * mid.size / 3).coerceIn(0, mid.size - 1)] }
+        val bedClip = mid[mid.size / 2]
+
         fun resample(clip: ShortArray, factor: Double): DoubleArray {
             val outN = (clip.size / factor).toInt().coerceAtLeast(16)
             return DoubleArray(outN) { i ->
-                val p = i * factor
-                val i0 = p.toInt().coerceAtMost(clip.size - 2)
-                val f = p - i0
+                val pp = i * factor
+                val i0 = pp.toInt().coerceAtMost(clip.size - 2)
+                val f = pp - i0
                 (clip[i0] * (1 - f) + clip[i0 + 1] * f) / 32768.0
             }
         }
 
         fun addClip(clip: ShortArray, start: Int, semitones: Int, vol: Double,
-                    pan: Double, reverse: Boolean, maxDurS: Double, ch: Int) {
+                    pan: Double, reverse: Boolean, maxDurS: Double, ch: Int, lpCut: Double = 0.0) {
             val factor = 2.0.pow(semitones / 12.0)
             var d = resample(clip, factor)
             if (reverse) d = DoubleArray(d.size) { d[d.size - 1 - it] }
-            val maxLen = (srate * maxDurS).toInt()
-            val len = minOf(d.size, maxLen)
-            val fade = (srate * 0.006).toInt().coerceAtLeast(1)
+            val len = minOf(d.size, (srate * maxDurS).toInt())
+            val fade = (srate * 0.005).toInt().coerceAtLeast(1)
             events.add(NoteEvent((60 + semitones).coerceIn(0, 127), start.toDouble() / srate,
                 len.toDouble() / srate, (vol * 220).toInt().coerceIn(30, 120), ch))
+            var lp = 0.0
+            val alpha = if (lpCut > 0) 1 - exp(-2 * PI * lpCut / srate) else 1.0
             for (i in 0 until len) {
                 val idx = start + i; if (idx >= n) break
-                var s = d[i] * vol
+                var s = d[i]
+                if (lpCut > 0) { lp += alpha * (s - lp); s = lp }
+                s *= vol
                 if (i < fade) s *= i.toDouble() / fade
                 if (i > len - fade) s *= (len - i).toDouble() / fade
                 outL[idx] += s * (1.0 - pan)
@@ -501,63 +521,81 @@ class Creator {
             }
         }
 
-        // Nappe de fond : un extrait ralenti d'une octave, bouclé sur tout le morceau
-        val bed = clips[rnd.nextInt(clips.size)]
-        var bedPos = 0
-        while (bedPos < n - srate) {
-            addClip(bed, bedPos, -12, 0.16, 0.5, false, 4.0, 2)
-            bedPos += (bed.size * 2 * 0.92).toInt()   // léger recouvrement, sans clic
+        // ===== HARMONIE : progression -> transposition par mesure =====
+        val majorSemi = listOf(0, 2, 4, 5, 7, 9, 11)
+        val progressions = listOf(
+            listOf(0, 4, 5, 3), listOf(0, 5, 3, 4), listOf(5, 3, 0, 4), listOf(0, 3, 0, 4)
+        )
+        val prog = progressions[rnd.nextInt(progressions.size)]
+        fun fold(s: Int): Int { var v = s; while (v > 6) v -= 12; while (v < -6) v += 12; return v }
+        fun barShift(bar: Int): Int = fold(majorSemi[prog[bar % prog.size] % 7])
+
+        // ===== LE MOTIF : composé UNE fois, répété ensuite =====
+        // (slot, indexDuChop, longueurEnSlots)
+        fun composePattern(density: Int): List<Triple<Int, Int, Int>> {
+            val base = if (density < 50) listOf("10100010", "10001010", "10100100")
+                       else listOf("10110100", "10010110", "01101010")
+            val pat = base[rnd.nextInt(base.size)]
+            val song = thought.filter { it.isLetter() }
+            val out = ArrayList<Triple<Int, Int, Int>>()
+            var ci = 0
+            for (s in 0 until slotsPerBar) if (pat[s] == '1') {
+                val c = if (song.length > 4) song[ci++ % song.length].code else rnd.nextInt(97, 123)
+                var len = 1; var q = s + 1
+                while (q < slotsPerBar && pat[q] == '0') { len++; q++ }
+                out.add(Triple(s, c % 3, len))
+            }
+            return out
         }
+        val patternA = composePattern(creativity)
+        val patternB = composePattern(creativity + 30)
 
-        // Grille rythmique : chops de TES sons
-        val calm = listOf("10101010", "10100010", "10001000", "10100100")
-        val spicy = listOf("10110100", "01101010", "10010110", "11010010")
-        val song = thought.filter { it.code in 32..1000 }
-        var charIdx = 0
         var slotGlobal = 0
-        val pitchPool = if (creativity < 40) listOf(0, 0, 2, -2, 0)
-                        else listOf(0, 2, -2, 5, 7, -5, 3, 0)
-
         for (bar in 0 until bars) {
             val sectionB = (bar * 4 / bars) == 2
-            val spice = creativity + (if (sectionB) 25 else 0)
-            val pattern = if (rnd.nextInt(100) < spice) spicy[rnd.nextInt(spicy.size)]
-                          else calm[rnd.nextInt(calm.size)]
+            val shift = barShift(bar)
             val barStart = (slotGlobal * slotDur * srate).toInt()
+            val variation = bar % 4 == 3     // toutes les 4 mesures, une petite surprise
 
-            // Basse : ton son pitché vers le grave, temps 1 et 3
-            val bassClip = clips[rnd.nextInt(clips.size)]
-            addClip(bassClip, barStart, -17, 0.34, 0.5, false, slotDur * 3.6, 1)
-            addClip(bassClip, barStart + (4 * slotDur * srate).toInt(), -17, 0.3, 0.5, false, slotDur * 3.6, 1)
+            // Nappe : tonique, absente pendant le pont (tension puis retour)
+            if (!sectionB) addClip(bedClip, barStart, -12 + shift, 0.13, 0.5, false, slotDur * slotsPerBar * 1.02, 2)
 
+            // Basse : MÊME extrait tout le morceau, transposé par l'accord, filtré grave
+            addClip(bassClip, barStart, -12 + shift, 0.42, 0.5, false, slotDur * 3.6, 1, lpCut = 200.0)
+            addClip(bassClip, barStart + (4 * slotDur * srate).toInt(), -12 + shift, 0.38, 0.5, false, slotDur * 3.6, 1, lpCut = 200.0)
+
+            // Groove : le MÊME kit percussif, dans TES sons
             for (s in 0 until slotsPerBar) {
-                val start = (slotGlobal * slotDur * srate).toInt()
-                if (pattern[s] == '1') {
-                    val ch = if (song.length > 8) song[charIdx++ % song.length] else ('a' + rnd.nextInt(26))
-                    if (ch != ' ' && ch != '.') {
-                        val clip = clips[(ch.code + bar) % clips.size]
-                        val semi = pitchPool[ch.code % pitchPool.size] + (if (sectionB) 3 else 0)
-                        val rev = creativity > 55 && rnd.nextInt(100) < 18
-                        val accent = if (s % 4 == 0) 1.15 else 0.95
-                        var len = 1; var q = s + 1
-                        while (q < slotsPerBar && pattern[q] == '0') { len++; q++ }
-                        addClip(clip, start, semi, 0.5 * accent,
-                            if (s % 2 == 0) 0.38 else 0.62, rev, slotDur * len * 0.98, 0)
-                    }
-                }
-                slotGlobal++
+                val st = barStart + (s * slotDur * srate).toInt()
+                if (s == 0 || s == 4) addClip(kickClip, st, -7, 0.5, 0.5, false, 0.09, 9)
+                if (s == 2 || s == 6) addClip(kickClip, st, 3, 0.32, 0.45, false, 0.11, 9)
+                if (s % 2 == 0) addClip(hatClip, st, 12, 0.16, if (s % 4 == 0) 0.62 else 0.38, false, 0.045, 9)
             }
+            if (variation && creativity > 30)
+                addClip(hatClip, barStart + (7 * slotDur * srate).toInt(), 12, 0.2, 0.5, false, 0.09, 9)
+
+            // Mélodie : le motif répété, transposé par l'accord
+            val pattern = if (sectionB) patternB else patternA
+            for ((s, chopIdx, len) in pattern) {
+                val st = barStart + (s * slotDur * srate).toInt()
+                val rev = variation && creativity > 55 && s == pattern.last().first
+                val accent = if (s % 4 == 0) 1.1 else 0.9
+                addClip(chops[chopIdx], st, shift + (if (sectionB) 12 else 0),
+                    0.5 * accent, if (s % 2 == 0) 0.4 else 0.6, rev, slotDur * len * 0.98, 0)
+            }
+            slotGlobal += slotsPerBar
         }
 
-        // Fin : ton son en fondu long
+        // Fin : basse + nappe sur la tonique, en fondu
         val endStart = (slotGlobal * slotDur * srate).toInt()
-        addClip(clips[rnd.nextInt(clips.size)], endStart, -12, 0.3, 0.5, false, 1.9, 0)
+        addClip(bassClip, endStart, -12, 0.4, 0.5, false, 1.8, 1, lpCut = 200.0)
+        addClip(bedClip, endStart, -12, 0.16, 0.5, false, 1.9, 2)
 
-        // Écho croisé + mastering doux
+        // Écho discret + mastering doux
         val delay = (slotDur * 1.5 * srate).toInt()
         for (i in delay until n) {
-            outL[i] += outR[i - delay] * 0.22
-            outR[i] += outL[i - delay] * 0.22
+            outL[i] += outR[i - delay] * 0.14
+            outR[i] += outL[i - delay] * 0.14
         }
         var mx = 1e-9
         for (i in 0 until n) {
